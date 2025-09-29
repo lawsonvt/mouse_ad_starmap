@@ -4,8 +4,6 @@
 library(SpatialExperiment)
 library(reticulate)
 
-ann_file <- "../WT_v_APP_PS19/results/anndata_objects/all_cells_integrated.h5ad"
-
 use_python("/opt/anaconda3/envs/ad/bin/python")
 
 ann_file <- "../WT_v_APP_PS19/results/anndata_objects/all_cells_integrated.h5ad"
