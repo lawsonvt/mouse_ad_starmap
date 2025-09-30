@@ -193,6 +193,18 @@ cell_connect_totals <- lapply(sample_ids, function(id) {
 })
 cell_connect_totals <- bind_rows(cell_connect_totals)
 
+# calc means and medians
+cell_connect_stats <- ddply(cell_connect_totals,
+                            .(sample_id),
+                            summarise,
+                            mean=mean(cell_count),
+                            median=median(cell_count),
+                            sd=sd(cell_count))
+
+cell_connect_stats$stat <- paste0("Mean: ", round(cell_connect_stats$mean, digits=2),
+                                  "\nMedian: ", round(cell_connect_stats$median, digits=2),
+                                  "\nStdDev: ", round(cell_connect_stats$sd, digits=2))
+
 # plot histogram of counts across samples
 ggplot(cell_connect_totals,
        aes(cell_count)) +
@@ -201,8 +213,9 @@ ggplot(cell_connect_totals,
   labs(x="Number of Connected Cells",
        y="Frequency") +
   facet_wrap(~ sample_cond, ncol=2) +
-  scale_x_continuous(breaks=c(0,5,10,15,20,25,30))
-ggsave(paste0(out_dir, "sample_cell_connectivity.histogram.png"), width=10, height=8)
+  scale_x_continuous(breaks=c(0,5,10,15,20,25,30, 35, 40)) +
+  geom_label(data=cell_connect_stats, aes(label=stat), x=30, y=3100, size=3)
+ggsave(paste0(out_dir, "sample_cell_connectivity.histogram.png"), width=6, height=5)
 
 # create adjacency matrices
 
