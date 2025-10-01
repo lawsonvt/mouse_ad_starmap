@@ -29,6 +29,9 @@ m3d_se <- readRDS("../WT_v_APP_PS19/results/anndata_objects/all_cells_integrated
 cell_metadata <- as.data.frame(colData(m3d_se))
 cell_metadata$cell_id <- rownames(cell_metadata)
 
+cell_metadata$sample_cond <- paste0(cell_metadata$ID,
+                                    "_", cell_metadata$Condition)
+
 # colors for consistent plotting
 cell_colors <- metadata(m3d_se)$"Cell Type_colors"
 
@@ -46,12 +49,12 @@ m3d_g <- spatialExperimentToGiotto(m3d_se)
 m3d_g@spatial_locs$cell$raw$sdimz <- spatialCoords(m3d_se)[,"Z"]
 
 # split into samples
-sample_ids <- levels(cell_metadata$ID)
+sample_ids <- unique(cell_metadata$sample_cond)
 
 # separate out samples by subsetting
 m3d_samples <- lapply(sample_ids, function(id) {
   
-  cell_ids <- rownames(cell_metadata[cell_metadata$ID == id,])
+  cell_ids <- rownames(cell_metadata[cell_metadata$sample_cond == id,])
   
   subset(m3d_g, cell_ids=cell_ids)
   
@@ -59,17 +62,35 @@ m3d_samples <- lapply(sample_ids, function(id) {
 names(m3d_samples) <- sample_ids
 
 # read in plaque cengtroids
-plaque_cents <- list(C165=read.csv("../WT_v_APP_PS19/data/plaque_csv_files/C165_APPPS19_plaque_centers_unfiltered_shifted_um.csv"),
-                     C164B=read.csv("../WT_v_APP_PS19/data/plaque_csv_files/C164B_WT_plaque_centers_unfiltered_shifted_um.csv"),
-                     C166A=read.csv("../WT_v_APP_PS19/data/plaque_csv_files/C166A_WT_plaque_centers_unfiltered_shifted_um.csv"),
-                     C158B=read.csv("../WT_v_APP_PS19/data/plaque_csv_files/C158B_APPPS19_plaque_centers_unfiltered_shifted_um.csv"))
+plaque_cents <- list(C165_APPPS19=read.csv("../WT_v_APP_PS19/data/plaque_csv_files/C165_APPPS19_plaque_centers_unfiltered_shifted_um.csv"),
+                     C164B_WT=read.csv("../WT_v_APP_PS19/data/plaque_csv_files/C164B_WT_plaque_centers_unfiltered_shifted_um.csv"),
+                     C166A_WT=read.csv("../WT_v_APP_PS19/data/plaque_csv_files/C166A_WT_plaque_centers_unfiltered_shifted_um.csv"),
+                     C158B_APPPS19=read.csv("../WT_v_APP_PS19/data/plaque_csv_files/C158B_APPPS19_plaque_centers_unfiltered_shifted_um.csv"))
+
+# add sample id to centroids
+plaque_cents <- lapply(sample_ids, function(id) {
+  
+  data <- plaque_cents[[id]]
+  data$sample_id <- id
+  
+  return(data)
+  
+})
+plaque_cents_df <- bind_rows(plaque_cents)
+
+plaque_cents_df$size_scaled <- scales::rescale(log10(plaque_cents_df$total_um + 1), to = c(3, 18))
+
+# determine mins and maxs
+volume_min <- min(plaque_cents_df$size_scaled)
+volume_max <- max(plaque_cents_df$size_scaled)
+
 
 # plot out per sample cell color plots
 
 for (sample_id in sample_ids) {
   
   giotto_obj <- m3d_samples[[sample_id]]
-  plaque_meta <- plaque_cents[[sample_id]]
+  plaque_meta <- plaque_cents_df[plaque_cents_df$sample_id == sample_id,]
   
   # Get your main cell/spot locations
   cell_locs <- getSpatialLocations(giotto_obj, spat_unit = "cell", output = "data.table")
@@ -125,6 +146,8 @@ for (sample_id in sample_ids) {
         color = ~log10(total_um + 1),
         colorscale = "Greys",
         reversescale=T,
+        cmin = volume_min,  # Fixed minimum
+        cmax = volume_max,  # Fixed maximum
         showscale = TRUE,
         colorbar = list(
           title = "log10(Volume)<br>(μm³)",
