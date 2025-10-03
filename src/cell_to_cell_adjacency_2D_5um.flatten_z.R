@@ -16,7 +16,7 @@ if(!genv_exists){
   installGiottoEnvironment()
 }
 
-out_dir <- "results/cell_to_cell_adjacency_2D_10um/"
+out_dir <- "results/cell_to_cell_adjacency_2D_5um_flatten/"
 dir.create(out_dir, recursive = T, showWarnings = F)
 
 
@@ -26,11 +26,13 @@ m3d_se <- readRDS("../WT_v_APP_PS19/results/anndata_objects/all_cells_integrated
 # pull out cell metadata
 cell_metadata <- as.data.frame(colData(m3d_se))
 cell_metadata$cell_id <- rownames(cell_metadata)
+cell_metadata$ID <- paste(cell_metadata$ID, cell_metadata$Condition)
 
 # convert to giotto object ...
 m3d_g <- spatialExperimentToGiotto(m3d_se)
 # add in z axis, since it does not get added
 m3d_g@spatial_locs$cell$raw$sdimz <- spatialCoords(m3d_se)[,"Z"]
+
 
 # plot instructions for Giotto
 instrs <- createGiottoInstructions(
@@ -49,17 +51,16 @@ ggplot(cell_metadata,
   labs(x="Z Coordinate", y="Cell Count") +
   theme_bw()
 ggsave(paste0(out_dir, "z_coord_histogram.png"), width=5, height=4)
-  
 
 # add slice information to metadata
 cell_metadata$slice <- "unused"
 
-cell_metadata[cell_metadata$Z >= 5 &
+cell_metadata[cell_metadata$Z >= 10 &
                 cell_metadata$Z <= 15,]$slice <- "Slice 1"
-cell_metadata[cell_metadata$Z >= 17 &
-                cell_metadata$Z <= 27,]$slice <- "Slice 2"
-cell_metadata[cell_metadata$Z >= 29 &
-                cell_metadata$Z <= 39,]$slice <- "Slice 3"
+cell_metadata[cell_metadata$Z >= 20 &
+                cell_metadata$Z <= 25,]$slice <- "Slice 2"
+cell_metadata[cell_metadata$Z >= 30 &
+                cell_metadata$Z <= 35,]$slice <- "Slice 3"
 
 ggplot(cell_metadata,
        aes(x=z_int, fill=slice)) +
@@ -77,16 +78,8 @@ ggplot(cell_metadata[cell_metadata$slice != "unused",],
   labs(x=NULL, y="Cell Count")
 ggsave(paste0(out_dir, "slice_sample_cell_counts.bar.png"), width=5, height=4)
 
-# visualize slices in 3D
-
 # colors for consistent plotting
 cell_colors <- metadata(m3d_se)$"Cell Type_colors"
-
-spatPlot3D(m3d_g,
-           cell_color="Cell.Type",
-           cell_color_code=cell_colors,
-           point_size = 2,
-           save_plot = F)
 
 # add in slice metadata
 m3d_g$slice <- cell_metadata$slice
@@ -97,16 +90,9 @@ spatPlot3D(m3d_g,
            point_size = 5,
            save_param = list(save_name="slice_3d_plot"))
 
-spatPlot3D(m3d_g,
-           cell_color="slice",
-           cell_color_code = c(pal_futurama()(3), "grey"),
-           point_size = 2,
-           axis_scale = "real",
-           save_param = list(save_name="slice_3d_plot.axis_real"))
+# split data into slices
 
 slices <- paste0("Slice ", 1:3)
-
-# split data into slices
 
 slice_list <- lapply(slices, function(slice) {
   
@@ -115,9 +101,8 @@ slice_list <- lapply(slices, function(slice) {
 })
 names(slice_list) <- slices
 
-
 # cell to cell adjacency per sample
-sample_ids <- levels(cell_metadata$ID)
+sample_ids <- unique(cell_metadata$ID)
 slices <- names(slice_list)
 
 cell_connections <- lapply(sample_ids, function(id) {
@@ -134,6 +119,9 @@ cell_connections <- lapply(sample_ids, function(id) {
                                    cell_metadata$ID == id,]
     # pull out sample
     sample_slice_g <- subset(slice_g, cell_id=meta_subset$cell_id)
+    
+    # drop z axis
+    sample_slice_g@spatial_locs$cell$raw$sdimz <- NULL
     
     # use Delaundy triangulation to determine spatial network
     sample_slice_g <- createSpatialNetwork(sample_slice_g, 
@@ -188,6 +176,7 @@ cell_connect_totals <- ddply(cell_connections,
                              summarise,
                              cell_count=length(unique(to)))
 
+
 # calc means and medians
 cell_connect_stats <- ddply(cell_connect_totals,
                             .(sample_id, slice),
@@ -202,19 +191,141 @@ cell_connect_stats$stat <- paste0("Mean: ", round(cell_connect_stats$mean, digit
 
 ggplot(cell_connect_totals,
        aes(cell_count)) +
-  geom_histogram(bins=31, color="white", fill="darkblue") +
+  geom_histogram(binwidth=1, color="white", fill="darkblue") +
   theme_bw() +
   labs(x="Number of Connected Cells",
        y="Frequency") +
   facet_grid(sample_id ~ slice) +
-  geom_label(data=cell_connect_stats, aes(label=stat), x=35, y=1400, size=3) +
-  scale_x_continuous(breaks=c(0,5,10,15,20,25,30,35,40))
+  geom_label(data=cell_connect_stats, aes(label=stat), x=32, y=750, size=2.5) +
+  scale_x_continuous(breaks=c(0,5,10,15,20,25,30,35,40),
+                     limits=c(0, 40))
 ggsave(paste0(out_dir, "sample_cell_connectivity.sliced.histogram.png"),
        width=8, height=7)
 
 
+# make heatmaps
 
+# hard code cell type order across samples (from 3D analysis)
+cell_type_order <- c("Astrocyte",
+                     "Oligodendrocyte",
+                     "E_Homer2_Pou3f1",
+                     "I_Npy_Lhx6",
+                     "E_Tbr1_Id2",
+                     "Endothelia",
+                     "E_Rora_Zic1",
+                     "I_Chrm2_Pvalb",
+                     "Oligodendrocyte progenitor cell",
+                     "Microglia",
+                     "E_Tshz2_Lamp5",
+                     "Hybrid_EI_neurons",
+                     "E_Cck_Tcf4",
+                     "E_Pou3f1_Cck",
+                     "E_Zic1_Lef1",
+                     "E_Baiap3_Tmem163",
+                     "E_Zic1_Syt9",
+                     "Choroid plexus",
+                     "Ependymal",
+                     "I_Ppp1r1b_Gpr88")
 
+# heatmap per sample, per slice
+for (slice in slices) {
+  for (id in sample_ids) {
+    
+    subset_connections <- cell_connections[cell_connections$sample_id == id &
+                                             cell_connections$slice == slice,]
+    
+    # sum up cell 2 cell edge counts
+    cell_type_connect_total <- ddply(subset_connections,
+                                     .(Cell.Type_from,Cell.Type_to),
+                                     summarise,
+                                     cell_count=length(from))  
+    
+    # log scale and z-score
+    cell_type_connect_total$scaled_count <- scale(log(cell_type_connect_total$cell_count))
+    
+    connect_matrix <- acast(cell_type_connect_total,
+                            Cell.Type_from ~ Cell.Type_to,
+                            value.var = "scaled_count")
+    
+    pdf(paste0(out_dir, id, ".", slice, ".cell_type_adj_matrix.pdf"), width=8, height=7)
+    print(Heatmap(connect_matrix,
+                  col=colorRamp2(c(-1.5,0,1.5), c("blue","white","red")),
+                  name = "Normalized\nEdge Count",
+                  column_title=paste(id,slice),
+                  cluster_rows = F, cluster_columns = F,
+                  row_order = cell_type_order,
+                  column_order = cell_type_order))
+    dev.off()
+    
+    
+  }
+}
 
+# heatmap per sample
+for (id in sample_ids) {
+  
+  subset_connections <- cell_connections[cell_connections$sample_id == id,]
+  
+  # sum up cell 2 cell edge counts
+  cell_type_connect_total <- ddply(subset_connections,
+                                   .(Cell.Type_from,Cell.Type_to),
+                                   summarise,
+                                   cell_count=length(from))  
+  
+  # log scale and z-score
+  cell_type_connect_total$scaled_count <- scale(log(cell_type_connect_total$cell_count))
+  
+  connect_matrix <- acast(cell_type_connect_total,
+                          Cell.Type_from ~ Cell.Type_to,
+                          value.var = "scaled_count")
+  
+  pdf(paste0(out_dir, id, ".cell_type_adj_matrix.pdf"), width=8, height=7)
+  print(Heatmap(connect_matrix,
+                col=colorRamp2(c(-1.5,0,1.5), c("blue","white","red")),
+                name = "Normalized\nEdge Count",
+                column_title=id,
+                cluster_rows = F, cluster_columns = F,
+                row_order = cell_type_order,
+                column_order = cell_type_order))
+  dev.off()
+  
+  
+}
 
+# condition heatmaps
+for (slice in slices) {
+  for (cond in unique(cell_metadata$Condition)) {
+    
+    subset_connections <- cell_connections[cell_connections$sample_id %in% 
+                                             unique(cell_metadata[cell_metadata$Condition == cond,]$ID) &
+                                             cell_connections$slice == slice,]
+    
+    # sum up cell 2 cell edge counts
+    cell_type_connect_total <- ddply(subset_connections,
+                                     .(Cell.Type_from,Cell.Type_to),
+                                     summarise,
+                                     cell_count=length(from))  
+    
+    # log scale and z-score
+    cell_type_connect_total$scaled_count <- scale(log(cell_type_connect_total$cell_count))
+    
+    connect_matrix <- acast(cell_type_connect_total,
+                            Cell.Type_from ~ Cell.Type_to,
+                            value.var = "scaled_count")
+    
+    pdf(paste0(out_dir, cond, ".",slice,".cell_type_adj_matrix.pdf"), width=8, height=7)
+    print(Heatmap(connect_matrix,
+                  col=colorRamp2(c(-1.5,0,1.5), c("blue","white","red")),
+                  name = "Normalized\nEdge Count",
+                  column_title=paste(cond,slice),
+                  cluster_rows = F, cluster_columns = F,
+                  row_order = cell_type_order,
+                  column_order = cell_type_order))
+    dev.off()
+    
+  }
+}
+
+# output the cell connections
+saveRDS(cell_connections, file=paste0(out_dir, "sample_slice_delaunay_connections.RDS"))
 

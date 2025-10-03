@@ -112,6 +112,8 @@ cell_connections <- lapply(sample_ids, function(id) {
                                 by.y="cell_id",
                                 suffixes=c("_from","_to"))
   
+  sp_graph_simple_both$sample_id <- id
+  
   
   return(sp_graph_simple_both)
 })
@@ -278,6 +280,6 @@ for (cond in conditions) {
 }
 
 
-
+saveRDS(bind_rows(cell_connections), file=paste0(out_dir, "sample_delaunay_connections.RDS"))
 
 
