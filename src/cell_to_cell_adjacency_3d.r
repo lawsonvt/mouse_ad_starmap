@@ -6,6 +6,10 @@ library(dplyr)
 library(reshape2)
 library(ComplexHeatmap)
 library(circlize)
+library(tidyverse)
+library(future)
+library(future.apply)
+library(patchwork)
 
 # Ensure Giotto can access a python env
 genv_exists <- checkGiottoEnvironment()
@@ -33,6 +37,9 @@ m3d_se <- readRDS("../WT_v_APP_PS19/results/anndata_objects/all_cells_integrated
 # pull out cell metadata
 cell_metadata <- as.data.frame(colData(m3d_se))
 cell_metadata$cell_id <- rownames(cell_metadata)
+
+# colors for consistent plotting
+cell_colors <- metadata(m3d_se)$"Cell Type_colors"
 
 cell_type_counts <- as.data.frame(table(cell_metadata$Cell.Type))
 cell_type_counts <- cell_type_counts[order(cell_type_counts$Freq),]
@@ -281,5 +288,146 @@ for (cond in conditions) {
 
 
 saveRDS(bind_rows(cell_connections), file=paste0(out_dir, "sample_delaunay_connections.RDS"))
+
+for (id in sample_ids) {
+  
+  g <- m3d_samples[[id]]
+  
+  g@spatial_locs$cell$raw$sdimy <- 
+    g@spatial_locs$cell$raw$sdimy * -1
+  
+  spatPlot2D(g,
+            cell_color="Cell.Type",
+            cell_color_code=cell_colors,
+            title=id,
+            point_size = 1,
+            save_param=list(save_name=paste0(id, ".2d_splot")))
+  
+  
+}
+
+
+# try out stellaromics code
+# cluster_dist <- function(data_df) {
+#   # Ensure required columns exist
+#   if (!all(c("X_um", "Y_um", "Z_um", "labeled") %in% names(data_df))) {
+#     stop("Dataframe must contain 'X_um', 'Y_um', 'Z_um', and 'labeled' columns.")
+#   }
+#   
+#   # Get unique cluster labels
+#   cluster_labels <- unique(data_df$labeled)
+#   num_clusters <- length(cluster_labels)
+#   
+#   # Use future_lapply for parallelizing the outer loop.
+#   # Each element in the result_list will be a vector representing a row of the distance matrix.
+#   result_list <- future_lapply(1:num_clusters, function(i) {
+#     source_cluster_name <- cluster_labels[i]
+#     source_points <- data_df[data_df$labeled == source_cluster_name, c("X_um", "Y_um", "Z_um")]
+#     
+#     # Vector to store the results for the current source cluster (i.e., a row of the final matrix)
+#     row_results <- numeric(num_clusters)
+#     
+#     # Loop through each cluster as the "target"
+#     for (j in 1:num_clusters) {
+#       target_cluster_name <- cluster_labels[j]
+#       target_points <- data_df[data_df$labeled == target_cluster_name, c("X_um", "Y_um", "Z_um")]
+#       
+#       # If source and target clusters are the same, calculate average minimum distance
+#       # to *other* cells within the same cluster.
+#       if (source_cluster_name == target_cluster_name) {
+#         # If there's only one cell in the cluster, cannot find a 'minimum distance to another cell'
+#         if (nrow(source_points) <= 1) {
+#           row_results[j] <- NA
+#           next # Skip to the next iteration
+#         }
+#         
+#         min_dists_from_source_to_self_cluster <- numeric(nrow(source_points))
+#         
+#         # For each cell in the source cluster, find its minimum distance to any *other* cell in the same cluster
+#         for (s_idx in 1:nrow(source_points)) {
+#           current_source_cell_coords <- as.numeric(source_points[s_idx, ])
+#           
+#           # Get all other points in the same cluster, excluding the current cell itself
+#           other_cells_in_same_cluster <- source_points[-s_idx, , drop = FALSE]
+#           
+#           # Calculate Euclidean distances from the current source cell to these other points
+#           temp_coords_matrix <- rbind(current_source_cell_coords, as.matrix(other_cells_in_same_cluster))
+#           all_pairwise_dists <- as.matrix(dist(temp_coords_matrix))
+#           
+#           # The distances from the first point (our current source cell) to all other points
+#           # (which are the other cells in the same cluster) are in the first row, excluding the first element.
+#           distances_from_cell_to_other_cells_in_same_cluster <- all_pairwise_dists[1, -1]
+#           
+#           # Find the minimum of these distances
+#           min_dist_for_current_cell <- min(distances_from_cell_to_other_cells_in_same_cluster)
+#           
+#           # Store this minimum distance
+#           min_dists_from_source_to_self_cluster[s_idx] <- min_dist_for_current_cell
+#         }
+#         # Calculate the average of these minimum distances
+#         row_results[j] <- mean(min_dists_from_source_to_self_cluster)
+#         
+#       } else {
+#         # Handle cases where a cluster might be empty
+#         if (nrow(source_points) == 0 || nrow(target_points) == 0) {
+#           row_results[j] <- NA
+#           next # Skip to the next iteration if either cluster is empty
+#         }
+#         
+#         # Vector to store the minimum distance from each source cell to the target cluster
+#         min_dists_from_source_to_target <- numeric(nrow(source_points))
+#         
+#         # For each cell in the source cluster, find its minimum distance to any cell in the target cluster
+#         for (s_idx in 1:nrow(source_points)) {
+#           current_source_cell_coords <- as.numeric(source_points[s_idx, ])
+#           
+#           # Calculate Euclidean distances from the current source cell to all target points
+#           # We combine the current cell's coordinates with the target cluster's points
+#           # into a single matrix. 'dist()' then calculates all pairwise distances.
+#           temp_coords_matrix <- rbind(current_source_cell_coords, as.matrix(target_points))
+#           all_pairwise_dists <- as.matrix(dist(temp_coords_matrix))
+#           
+#           # The distances from the first point (our current source cell) to all other points
+#           # (which are the target cluster points) are located in the first row of
+#           # 'all_pairwise_dists' matrix, excluding the first element (which is the
+#           # distance from the cell to itself, always 0).
+#           distances_from_cell_to_target_cluster <- all_pairwise_dists[1, -1]
+#           
+#           # Find the minimum of these distances
+#           min_dist_for_current_cell <- min(distances_from_cell_to_target_cluster)
+#           
+#           # Store this minimum distance
+#           min_dists_from_source_to_target[s_idx] <- min_dist_for_current_cell
+#         }
+#         
+#         # Calculate the average of these minimum distances
+#         row_results[j] <- mean(min_dists_from_source_to_target)
+#       }
+#     }
+#     return(row_results)
+#   })
+#   
+#   # Combine the list of row results into the final distance matrix
+#   distance_matrix <- do.call(rbind, result_list)
+#   colnames(distance_matrix) <- cluster_labels
+#   rownames(distance_matrix) <- cluster_labels
+#   
+#   return(distance_matrix)
+# }
+# 
+# plan(multisession, workers = 4)
+# 
+# 
+# sample_mat <- lapply(m3d_samples, function(g) {
+#   
+#   # metadata
+#   cluster_locs <- data.frame(X_um=g@cell_metadata$cell$rna$X,
+#                              Y_um=g@cell_metadata$cell$rna$Y,
+#                              Z_um=g@cell_metadata$cell$rna$Z,
+#                              labeled=g@cell_metadata$cell$rna$Cell.Type)
+#   
+#   mat <- cluster_dist(cluster_locs)
+#   
+# })
 
 

@@ -8,7 +8,7 @@ out_dir <- "results/3d_to_2d_adjacency_comp/"
 dir.create(out_dir, showWarnings = F)
 
 connect_3d <- readRDS("results/cell_to_cell_adjacency_3d/sample_delaunay_connections.RDS")
-connect_2d <- readRDS("results/cell_to_cell_adjacency_2D_5um_flatten/sample_slice_delaunay_connections.RDS")
+connect_2d <- readRDS("results/cell_to_cell_adjacency_2D_10um_flatten/sample_slice_delaunay_connections.RDS")
 
 connect_2d$condition <- sapply(connect_2d$sample_id, function(x) {unlist(strsplit(x, " "))[2]})
 connect_3d$condition <- sapply(connect_3d$sample_id, function(x) {unlist(strsplit(x, " "))[2]})
