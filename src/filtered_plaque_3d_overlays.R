@@ -4,7 +4,6 @@ library(plyr)
 library(ggplot2)
 library(dplyr)
 library(plotly)
-library(openxlsx)
 
 # Ensure Giotto can access a python env
 genv_exists <- checkGiottoEnvironment()
@@ -14,7 +13,7 @@ if(!genv_exists){
   installGiottoEnvironment()
 }
 
-out_dir <- "results/basic_plaque_3d_overlays/"
+out_dir <- "results/filtered_plaque_3d_overlays/"
 dir.create(out_dir, recursive = T, showWarnings = F)
 
 instrs <- createGiottoInstructions(
@@ -68,42 +67,32 @@ plaque_cents <- list(C165_APPPS19=read.csv("../WT_v_APP_PS19/data/plaque_csv_fil
                      C166A_WT=read.csv("../WT_v_APP_PS19/data/plaque_csv_files/C166A_WT_plaque_centers_unfiltered_shifted_um.csv"),
                      C158B_APPPS19=read.csv("../WT_v_APP_PS19/data/plaque_csv_files/C158B_APPPS19_plaque_centers_unfiltered_shifted_um.csv"))
 
-# add sample id to centroids
+# add sample id to centroids and filter out first 15um
 plaque_cents <- lapply(sample_ids, function(id) {
   
   data <- plaque_cents[[id]]
   data$sample_id <- id
-  
+
+  data <- data[data$z_um > 15,]
+    
   return(data)
   
 })
 plaque_cents_df <- bind_rows(plaque_cents)
 
-# pull out top sizes
-top_plaque_cents <- plaque_cents_df[plaque_cents_df$total_um > 1000,
-                                    c("sample_id","plaque_id","total_um","x_um","y_um","z_um")]
-top_plaque_cents <- top_plaque_cents[order(top_plaque_cents$total_um,
-                                           decreasing=T),]
-
-write.xlsx(top_plaque_cents, file=paste0(out_dir, "top_plaque_sizes.xlsx"),
-           colWidths="auto")
-
 plaque_cents_df$size_scaled <- scales::rescale(log10(plaque_cents_df$total_um + 1), to = c(3, 18))
 
 ggplot(plaque_cents_df,
-       aes(x=total_um)) +
-  geom_histogram() +
-  theme_bw() +
-  scale_x_log10() +
-  scale_y_log10()
+       aes(x=z_um, y=total_um)) +
+  scale_y_log10() +
+  geom_point(alpha=0.6) +
+  theme_bw()
 
 # determine mins and maxs
 volume_min <- min(plaque_cents_df$size_scaled)
 volume_max <- max(plaque_cents_df$size_scaled)
 
-
-# plot out per sample cell color plots
-
+# make some plots!
 for (sample_id in sample_ids) {
   
   giotto_obj <- m3d_samples[[sample_id]]
@@ -122,7 +111,7 @@ for (sample_id in sample_ids) {
   cell_locs$color <- cell_color_meta[cell_locs$cell_ID,]$cell_color     # your cell type colors
   
   # Log scale plaque sizes based on volume
-  plaque_meta$size_scaled <- scales::rescale(log10(plaque_meta$total_um + 1), to = c(3, 18))
+  #plaque_meta$size_scaled <- scales::rescale(log10(plaque_meta$total_um + 1), to = c(3, 18))
   
   # Create interactive 3D plot
   fig <- plot_ly()
@@ -140,7 +129,7 @@ for (sample_id in sample_ids) {
         type = "scatter3d",
         mode = "markers",
         marker = list(
-          size = 2,
+          size = 3,
           color = unique(ct_data$color),
           opacity = 0.7
         ),
@@ -195,7 +184,8 @@ for (sample_id in sample_ids) {
         xaxis = list(title = "X (μm)"),
         yaxis = list(title = "Y (μm)"),
         zaxis = list(title = "Z (μm)"),
-        aspectmode = "data",
+        aspectmode = "manual",
+        aspectratio = list(x = 1, y = 0.7, z = 0.7),
         camera = list(
           eye = list(x = 1.5, y = 1.5, z = 1.5)
         )
@@ -219,10 +209,131 @@ for (sample_id in sample_ids) {
   # Display the plot
   fig
   
-  htmlwidgets::saveWidget(fig, paste0(out_dir, sample_id, ".cells_plaque_3d.html"), selfcontained = TRUE)
+  htmlwidgets::saveWidget(fig, paste0(out_dir, sample_id, ".cells_plaque_3d.scaled.html"), selfcontained = TRUE)
   
 }
 
+
+# try it without the size scaling
+for (sample_id in sample_ids) {
+  
+  giotto_obj <- m3d_samples[[sample_id]]
+  plaque_meta <- plaque_cents_df[plaque_cents_df$sample_id == sample_id,]
+  
+  # Get your main cell/spot locations
+  cell_locs <- getSpatialLocations(giotto_obj, spat_unit = "cell", output = "data.table")
+  
+  # Get plaque locations and metadata
+  # plaque_locs <- giotto_obj@spatial_locs[["cell"]][["plaques"]]
+  # plaque_meta <- giotto_obj@cell_metadata[["cell"]][["plaques"]]
+  
+  # Add cell types and colors to cell_locs
+  # Assuming you have a vector of cell_types in the same order as cell_locs
+  cell_locs$cell_type <- cell_color_meta[cell_locs$cell_ID,]$Cell.Type  # your cell type labels
+  cell_locs$color <- cell_color_meta[cell_locs$cell_ID,]$cell_color     # your cell type colors
+  
+  # Log scale plaque sizes based on volume
+  #plaque_meta$size_scaled <- scales::rescale(log10(plaque_meta$total_um + 1), to = c(3, 18))
+  
+  # Create interactive 3D plot
+  fig <- plot_ly()
+  
+  # Add cells by cell type (one trace per cell type for proper legend)
+  unique_cell_types <- sort(unique(cell_locs$cell_type))
+  
+  for(ct in unique_cell_types) {
+    ct_data <- cell_locs[cell_locs$cell_type == ct, ]
+    
+    fig <- fig %>%
+      add_trace(
+        data = as.data.frame(ct_data),
+        x = ~sdimx, y = ~sdimy, z = ~sdimz,
+        type = "scatter3d",
+        mode = "markers",
+        marker = list(
+          size = 3,
+          color = unique(ct_data$color),
+          opacity = 0.7
+        ),
+        name = ct,
+        visible = TRUE,  # All visible by default
+        hoverinfo = "text",
+        text = ~paste("Cell ID:", cell_ID, "<br>Cell Type:", cell_type)
+      )
+  }
+  
+  # Add plaques with log-scaled sizes
+  fig <- fig %>%
+    add_trace(
+      data = plaque_meta,
+      x = ~x_um, y = ~y_um, z = ~z_um,
+      type = "scatter3d",
+      mode = "markers",
+      marker = list(
+        size = ~total_um,
+        color = ~log10(total_um + 1),
+        colorscale = "Greys",
+        reversescale=T,
+#        cmin = volume_min,  # Fixed minimum
+#        cmax = volume_max,  # Fixed maximum
+        showscale = TRUE,
+        colorbar = list(
+          title = "log10(Volume)<br>(μm³)",
+          thickness = 20,
+          len = 0.5,
+          x = -0.1,
+          y = 0.5,
+          xanchor = "right",
+          yanchor = "middle"
+        ),
+        line = list(color = "black", width = 1)
+      ),
+      name = "Plaques",
+      visible = TRUE,
+      hoverinfo = "text",
+      text = ~paste(
+        "Plaque ID:", plaque_id,
+        "<br>Volume:", round(total_um, 4), "μm³",
+        "<br>log10(Volume):", round(log10(total_um + 1), 2),
+        "<br>Pixels:", total_pixels
+      )
+    )
+  
+  # Update layout with toggle mode for multi-select
+  fig <- fig %>%
+    layout(
+      scene = list(
+        xaxis = list(title = "X (μm)"),
+        yaxis = list(title = "Y (μm)"),
+        zaxis = list(title = "Z (μm)"),
+        aspectmode = "manual",
+        aspectratio = list(x = 1, y = 0.7, z = 0.7),
+        camera = list(
+          eye = list(x = 1.5, y = 1.5, z = 1.5)
+        )
+      ),
+      title = paste0(sample_id, "\n3D Spatial Transcriptomics with Plaque Centroids<br><sub>Click legend items to show/hide cell types</sub>"),
+      showlegend = TRUE,
+      legend = list(
+        x = 1.02,
+        y = 0.5,
+        xanchor = "left",
+        yanchor = "middle",
+        itemsizing = "constant",
+        itemclick = "toggle",      # Click to toggle individual traces on/off
+        itemdoubleclick = T,   # Disable double-click behavior
+        bgcolor = "rgba(255, 255, 255, 0.8)",
+        bordercolor = "gray",
+        borderwidth = 1
+      )
+    )
+  
+  # Display the plot
+  fig
+  
+  htmlwidgets::saveWidget(fig, paste0(out_dir, sample_id, ".cells_plaque_3d.scaled.html"), selfcontained = TRUE)
+  
+}
 
 
 
