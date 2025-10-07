@@ -208,9 +208,9 @@ ggplot(cell_connect_totals,
   labs(x="Number of Connected Cells",
        y="Frequency") +
   facet_grid(sample_id ~ slice) +
-  geom_label(data=cell_connect_stats, aes(label=stat), x=32, y=2000, size=2.5) +
+  geom_label(data=cell_connect_stats, aes(label=stat), x=30, y=2000, size=2.5) +
   scale_x_continuous(breaks=c(0,5,10,15,20,25,30,35,40),
-                     limits=c(0, 40))
+                     limits=c(0, 35))
 ggsave(paste0(out_dir, "sample_cell_connectivity.sliced.histogram.png"),
        width=8, height=7)
 
