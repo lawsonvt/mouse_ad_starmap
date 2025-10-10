@@ -2,6 +2,8 @@ library(ComplexHeatmap)
 library(circlize)
 library(plyr)
 library(reshape2)
+library(ggplot2)
+library(ggsci)
 
 out_dir <- "results/3d_to_2d_adjacency_comp/"
 
@@ -153,6 +155,49 @@ for (cond in conditions) {
   print(h1+h2)
   dev.off()
 }
+
+
+
+# do overall adjacency comparison
+
+sample_order <- c("C164B WT","C158B APPPS19",
+                  "C166A WT", "C165 APPPS19")
+
+connect_3d_sums <- ddply(connect_3d,
+                         .(sample_id, from),
+                         summarise,
+                         cell_count=length(unique(to)))
+connect_3d_sums$type <- "3D"
+
+connect_2d_sums <- ddply(connect_2d,
+                         .(sample_id, from),
+                         summarise,
+                         cell_count=length(unique(to)))
+connect_2d_sums$type <- "2D"
+
+connect_sums <- rbind(connect_3d_sums,
+                      connect_2d_sums)
+
+connect_sums$sample_id <- factor(connect_sums$sample_id,
+                                 levels=sample_order)
+
+
+ggplot(connect_sums,
+       aes(x=cell_count,
+           fill=type)) +
+  geom_density(adjust=3) +
+  facet_wrap(~ sample_id, ncol=2) +
+  theme_bw() +
+  scale_fill_manual(values=c("grey","maroon")) +
+  scale_x_continuous(breaks=seq(0,40,by=5)) +
+  theme(legend.position = "bottom") +
+  labs(x="Number of Connected Cells",
+       y="Density of Cells",
+       fill=NULL)
+ggsave(paste0(out_dir, "mean_connected_cells.density_per_sample.png"),
+       width=6, height=5)
+
+
 
 
 
