@@ -143,6 +143,7 @@ p1 <- ggplot(plaque_counts_all,
 plot_grid(p1,p2)
 ggsave(paste0(out_dir, "plaque_counts_per_sample.png"), width=10, height=5)
 
+
 ggplot(plaque_cents_df_f,
        aes(x=total_um,
            color=sample_id)) +
@@ -158,7 +159,7 @@ ggplot(plaque_cents_df_f,
            fill=sample_id)) +
   facet_wrap(~ sample_id, ncol=2) +
   scale_fill_nejm() +
-  scale_x_log10(breaks=c(25,50, 100,250,500,1000,2500,5000, 10000)) +
+  scale_x_log10(breaks=c(25,50, 100,250,500,1000,2500,5000, 10000, 100000)) +
   geom_histogram( color="white", binwidth = 0.1) +
   guides(fill="none") +
   theme_bw() +
