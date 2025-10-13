@@ -166,7 +166,35 @@ ggplot(plaque_cents_df_f,
 ggsave(paste0(out_dir, "plaque_size_per_sample.histograms.png"), width=9, height=7)
 
 
+# plaque counts across the z axis
 
+plaque_cents_df$z_um_floor <- floor(plaque_cents_df$z_um)
+plaque_cents_df_f$z_um_floor <- floor(plaque_cents_df_f$z_um)
+
+plaque_cents_df$sample_id <- factor(as.character(plaque_cents_df$sample_id),
+                                    levels=sample_order)
+
+ggplot(plaque_cents_df,
+       aes(x=z_um_floor,
+           fill=sample_id)) +
+  geom_histogram(binwidth = 1) +
+  scale_fill_nejm() +
+  facet_wrap(~ sample_id, ncol=2) +
+  guides(fill="none") +
+  theme_bw() +
+  labs(x="Z Axis", y="Plaque Counts")
+ggsave(paste0(out_dir, "plaque_locations_z_axis.unfiltered.png"), width=9, height=7)
+
+ggplot(plaque_cents_df_f,
+       aes(x=z_um_floor,
+           fill=sample_id)) +
+  geom_histogram(binwidth = 1) +
+  scale_fill_nejm() +
+  facet_wrap(~ sample_id, ncol=2) +
+  guides(fill="none") +
+  theme_bw() +
+  labs(x="Z Axis", y="Plaque Counts\nPlaque Volume > 20um^3")
+ggsave(paste0(out_dir, "plaque_locations_z_axis.filtered.png"), width=9, height=7)
 
   
 
