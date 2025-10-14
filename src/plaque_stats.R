@@ -197,5 +197,123 @@ ggplot(plaque_cents_df_f,
   labs(x="Z Axis", y="Plaque Counts\nPlaque Volume > 20um^3")
 ggsave(paste0(out_dir, "plaque_locations_z_axis.filtered.png"), width=9, height=7)
 
-  
+# make a cut off of 30um and above
+
+ggplot(plaque_cents_df,
+       aes(x=z_um_floor,
+           fill=sample_id)) +
+  geom_histogram(binwidth = 1) +
+  scale_fill_nejm() +
+  facet_wrap(~ sample_id, ncol=2) +
+  guides(fill="none") +
+  theme_bw() +
+  labs(x="Z Axis", y="Plaque Counts") +
+  geom_vline(xintercept = 30, color="black", linetype=2)
+ggsave(paste0(out_dir, "plaque_locations_z_axis.unfiltered.show_cut.png"), width=9, height=7)
+
+ggplot(plaque_cents_df_f,
+       aes(x=z_um_floor,
+           fill=sample_id)) +
+  geom_histogram(binwidth = 1) +
+  scale_fill_nejm() +
+  facet_wrap(~ sample_id, ncol=2) +
+  guides(fill="none") +
+  theme_bw() +
+  labs(x="Z Axis", y="Plaque Counts\nPlaque Volume > 20um^3") +
+  geom_vline(xintercept = 30, color="black", linetype=2)
+ggsave(paste0(out_dir, "plaque_locations_z_axis.filtered.show_cut.png"), width=9, height=7)
+
+# cut out all plaques with Z location >= 30
+
+plaque_cents_df_cut <- plaque_cents_df[plaque_cents_df$z_um < 30,]
+plaque_cents_df_f_cut <- plaque_cents_df_f[plaque_cents_df_f$z_um < 30,]
+
+# cut counts
+# unfiltered
+plaque_counts_all <- as.data.frame(table(plaque_cents_df_cut$sample_id))
+colnames(plaque_counts_all) <- c("sample_id","count")
+
+plaque_counts_all$sample_id <- factor(as.character(plaque_counts_all$sample_id),
+                                      levels=sample_order)
+
+p1 <- ggplot(plaque_counts_all,
+             aes(x=reorder(sample_id,count),
+                 y=count,
+                 fill=sample_id)) +
+  geom_bar(stat="identity") +
+  scale_fill_nejm() +
+  theme_bw() +
+  guides(fill="none") +
+  labs(x=NULL, y="Plaque Count")
+
+plaque_counts <- as.data.frame(table(plaque_cents_df_f_cut$sample_id))
+colnames(plaque_counts) <- c("sample_id","count")
+
+plaque_counts$sample_id <- factor(as.character(plaque_counts$sample_id),
+                                  levels=sample_order)
+
+p2 <- ggplot(plaque_counts,
+             aes(x=reorder(sample_id,count),
+                 y=count,
+                 fill=sample_id)) +
+  geom_bar(stat="identity") +
+  scale_fill_nejm() +
+  theme_bw() +
+  guides(fill="none") +
+  labs(x=NULL, y="Plaque Count\nPlaque Volume > 20um^3")
+
+plot_grid(p1,p2)
+ggsave(paste0(out_dir, "plaque_counts_per_sample.after_cut.png"), width=10, height=5)
+
+# new and improved plaque size plots with after the cut
+ggplot(plaque_cents_df_f_cut,
+       aes(x=total_um,
+           color=sample_id)) +
+  scale_color_nejm() +
+  scale_x_log10() +
+  geom_density() +
+  theme_bw() +
+  labs(x="Plague Volume (in um^3)", y="Density", color=NULL)
+ggsave(paste0(out_dir, "plaque_size_per_sample.density.after_cut.png"), width=6, height=4)
+
+ggplot(plaque_cents_df_f_cut,
+       aes(x=total_um,
+           fill=sample_id)) +
+  facet_wrap(~ sample_id, ncol=2) +
+  scale_fill_nejm() +
+  scale_x_log10(breaks=c(25,50, 100,250,500,1000,2500,5000, 10000, 100000)) +
+  geom_histogram( color="white", binwidth = 0.1) +
+  guides(fill="none") +
+  theme_bw() +
+  labs(x="Plague Volume (in um^3)", y="Plaque Count")
+ggsave(paste0(out_dir, "plaque_size_per_sample.histograms.after_cut.png"), width=9, height=7)
+
+# drop the crazy large one
+ggplot(plaque_cents_df_f_cut[plaque_cents_df_f_cut$total_um < 100849,],
+       aes(x=total_um,
+           color=sample_id)) +
+  scale_color_nejm() +
+  scale_x_log10() +
+  geom_density() +
+  theme_bw() +
+  labs(x="Plague Volume (in um^3)", y="Density", color=NULL)
+ggsave(paste0(out_dir, "plaque_size_per_sample.density.after_cut_and_drop.png"), width=6, height=4)
+
+ggplot(plaque_cents_df_f_cut[plaque_cents_df_f_cut$total_um < 100849,],
+       aes(x=total_um,
+           fill=sample_id)) +
+  facet_wrap(~ sample_id, ncol=2) +
+  scale_fill_nejm() +
+  scale_x_log10(breaks=c(25,50, 100,250,500,1000,2500,5000, 10000, 100000)) +
+  geom_histogram( color="white", binwidth = 0.1) +
+  guides(fill="none") +
+  theme_bw() +
+  labs(x="Plague Volume (in um^3)", y="Plaque Count")
+ggsave(paste0(out_dir, "plaque_size_per_sample.histograms.after_cut_and_drop.png"), width=9, height=7)
+
+
+
+
+
+
 
