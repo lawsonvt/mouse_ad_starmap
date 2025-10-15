@@ -67,13 +67,18 @@ plaque_cents <- list(C165_APPPS19=read.csv("../WT_v_APP_PS19/data/plaque_csv_fil
                      C166A_WT=read.csv("../WT_v_APP_PS19/data/plaque_csv_files/C166A_WT_plaque_centers_unfiltered_shifted_um.csv"),
                      C158B_APPPS19=read.csv("../WT_v_APP_PS19/data/plaque_csv_files/C158B_APPPS19_plaque_centers_unfiltered_shifted_um.csv"))
 
-# add sample id to centroids and filter out first 15um
+# add sample id to centroids and filter plaques based on size and location
 plaque_cents <- lapply(sample_ids, function(id) {
   
   data <- plaque_cents[[id]]
   data$sample_id <- id
 
-  data <- data[data$z_um > 15,]
+  data$plaque_id <- paste0(data$sample_id,
+                           "|", data$plaque_id)
+  
+  data <- data[data$total_um > 20 &
+                 data$z_um < 30 &
+                 data$total_um < 100849,]
     
   return(data)
   
@@ -100,6 +105,9 @@ for (sample_id in sample_ids) {
   
   # Get your main cell/spot locations
   cell_locs <- getSpatialLocations(giotto_obj, spat_unit = "cell", output = "data.table")
+  
+  # filter down
+  cell_locs <- cell_locs[cell_locs$sdimz < 30,]
   
   # Get plaque locations and metadata
   # plaque_locs <- giotto_obj@spatial_locs[["cell"]][["plaques"]]
@@ -149,21 +157,22 @@ for (sample_id in sample_ids) {
       mode = "markers",
       marker = list(
         size = ~size_scaled,
-        color = ~log10(total_um + 1),
-        colorscale = "Greys",
-        reversescale=T,
-        cmin = volume_min,  # Fixed minimum
-        cmax = volume_max,  # Fixed maximum
-        showscale = TRUE,
-        colorbar = list(
-          title = "log10(Volume)<br>(μm³)",
-          thickness = 20,
-          len = 0.5,
-          x = -0.1,
-          y = 0.5,
-          xanchor = "right",
-          yanchor = "middle"
-        ),
+#        color = ~log10(total_um + 1),
+#        colorscale = "Greys",
+#        reversescale=T,
+        color="black",
+        #cmin = volume_min,  # Fixed minimum
+        #cmax = volume_max,  # Fixed maximum
+        #showscale = TRUE,
+        #colorbar = list(
+        #  title = "log10(Volume)<br>(μm³)",
+        #  thickness = 20,
+        #  len = 0.5,
+        #  x = -0.1,
+        #  y = 0.5,
+        #  xanchor = "right",
+        #  yanchor = "middle"
+        #),
         line = list(color = "black", width = 1)
       ),
       name = "Plaques",
@@ -223,6 +232,9 @@ for (sample_id in sample_ids) {
   # Get your main cell/spot locations
   cell_locs <- getSpatialLocations(giotto_obj, spat_unit = "cell", output = "data.table")
   
+  # filter down
+  cell_locs <- cell_locs[cell_locs$sdimz < 30,]
+  
   # Get plaque locations and metadata
   # plaque_locs <- giotto_obj@spatial_locs[["cell"]][["plaques"]]
   # plaque_meta <- giotto_obj@cell_metadata[["cell"]][["plaques"]]
@@ -270,22 +282,23 @@ for (sample_id in sample_ids) {
       type = "scatter3d",
       mode = "markers",
       marker = list(
-        size = ~total_um,
-        color = ~log10(total_um + 1),
-        colorscale = "Greys",
-        reversescale=T,
-#        cmin = volume_min,  # Fixed minimum
-#        cmax = volume_max,  # Fixed maximum
-        showscale = TRUE,
-        colorbar = list(
-          title = "log10(Volume)<br>(μm³)",
-          thickness = 20,
-          len = 0.5,
-          x = -0.1,
-          y = 0.5,
-          xanchor = "right",
-          yanchor = "middle"
-        ),
+        size = ~size_scaled,
+        #        color = ~log10(total_um + 1),
+        #        colorscale = "Greys",
+        #        reversescale=T,
+        color="black",
+        #cmin = volume_min,  # Fixed minimum
+        #cmax = volume_max,  # Fixed maximum
+        #showscale = TRUE,
+        #colorbar = list(
+        #  title = "log10(Volume)<br>(μm³)",
+        #  thickness = 20,
+        #  len = 0.5,
+        #  x = -0.1,
+        #  y = 0.5,
+        #  xanchor = "right",
+        #  yanchor = "middle"
+        #),
         line = list(color = "black", width = 1)
       ),
       name = "Plaques",
@@ -306,8 +319,7 @@ for (sample_id in sample_ids) {
         xaxis = list(title = "X (μm)"),
         yaxis = list(title = "Y (μm)"),
         zaxis = list(title = "Z (μm)"),
-        aspectmode = "manual",
-        aspectratio = list(x = 1, y = 0.7, z = 0.7),
+        aspectmode = "data",
         camera = list(
           eye = list(x = 1.5, y = 1.5, z = 1.5)
         )
@@ -331,9 +343,19 @@ for (sample_id in sample_ids) {
   # Display the plot
   fig
   
-  htmlwidgets::saveWidget(fig, paste0(out_dir, sample_id, ".cells_plaque_3d.scaled.html"), selfcontained = TRUE)
+  htmlwidgets::saveWidget(fig, paste0(out_dir, sample_id, ".cells_plaque_3d.real.html"), selfcontained = TRUE)
   
 }
+
+# zip it up
+curr_wd <- getwd()
+
+setwd(out_dir)
+
+zip(zipfile = "plaque_plots.zip",
+    files=list.files(".", pattern="\\.html$"))
+
+setwd(curr_wd)
 
 
 
