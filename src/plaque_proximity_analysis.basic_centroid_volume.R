@@ -191,6 +191,28 @@ sample_celltype_counts <- lapply(sample_ids, function(id) {
   
 })
 sample_celltype_counts <- bind_rows(sample_celltype_counts)
+
+# plot out cell type percentages across all samples
+
+sample_celltype_counts <- sample_celltype_counts[order(sample_celltype_counts$total_frac,
+                                                       decreasing=T),]
+
+sample_celltype_counts$Cell.Type <- factor(as.character(sample_celltype_counts$Cell.Type),
+                                           levels=unique(sample_celltype_counts$Cell.Type))
+sample_celltype_counts$sample_id <- factor(as.character(sample_celltype_counts$sample_id),
+                                           levels=sample_order)
+
+ggplot(sample_celltype_counts,
+       aes(x=Cell.Type,
+           y=total_frac*100,
+           fill=sample_id)) +
+  geom_bar(stat="identity", position="dodge") +
+  scale_fill_nejm() +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle=35, hjust=1),
+        legend.position = "bottom") +
+  labs(x=NULL, y="Cell Type Percentage", fill=NULL)
+ggsave(paste0(out_dir, "celltype_percentages_total.bar.png"), width=8, height=5)
  
 # just focus on bin 1 for now
 
