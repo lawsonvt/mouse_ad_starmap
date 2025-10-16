@@ -137,6 +137,9 @@ sample_min_dists <- lapply(sample_ids, function(id) {
 })
 sample_min_dists_df <- bind_rows(sample_min_dists)
 
+# save to file
+saveRDS(sample_min_dists, file=paste0(out_dir, "cell2plaque_min_distance.RDS"))
+
 sample_min_dists_df$sample_id <- factor(as.character(sample_min_dists_df$sample_id),
                                         levels=sample_order)
 
@@ -167,12 +170,6 @@ sample_min_dists_df <- merge(sample_min_dists_df,
                              cell_metadata[,c("cell_id","Cell.Type")],
                              by="cell_id")
 
-
-distance_bins <- list(c(start=-Inf, stop=25),
-                      c(start=26, stop=75),
-                      c(start=76, stop=125),
-                      c(start=126, stop=175),
-                      c(start=176, stop=Inf))
 
 # for normalization, what are the cell type counts per sample
 sample_celltype_counts <- lapply(sample_ids, function(id) {
@@ -298,4 +295,119 @@ ggplot(total_counts,
   theme(axis.text.x = element_text(angle=35, hjust=1)) +
   labs(x=NULL, y=NULL)
 ggsave(paste0(out_dir, "plaque_counts_v_close_cells.bar.png"), width=4, height=5)
+
+# binning!
+
+distance_bins <- list(c(start=-Inf, stop=25),
+                      c(start=25, stop=75),
+                      c(start=75, stop=125),
+                      c(start=125, stop=175),
+                      c(start=175, stop=225),
+                      c(start=225, stop=Inf))
+names(distance_bins) <- c("< 25um",
+                          "25um - 75um",
+                          "75um - 125um",
+                          "125um - 175um",
+                          "175um - 225um",
+                          ">= 225um")
+
+ggplot(sample_min_dists_df,
+       aes(x=surface_dist,
+           fill=sample_id)) +
+  geom_histogram( binwidth = 5) +
+  facet_wrap(~ sample_id, ncol=2) +
+  scale_fill_nejm() +
+  geom_vline(xintercept = 25, color="black", linetype=2) +
+  geom_vline(xintercept = 75, color="black", linetype=2) +
+  geom_vline(xintercept = 125, color="black", linetype=2) +
+  geom_vline(xintercept = 175, color="black", linetype=2) +
+  geom_vline(xintercept = 225, color="black", linetype=2) +
+  theme_bw() +
+  guides(fill="none") +
+  labs(x="Distance to Plaque", y="Cell Counts")
+ggsave(paste0(out_dir, "sample_plaque_distances.bar_bin_lines.png"), width=8, height=5)
+
+ggplot(sample_min_dists_df,
+       aes(x=surface_dist,
+           color=sample_id)) +
+  geom_density(linewidth = 2) +
+  scale_color_nejm() +
+  scale_fill_nejm() +
+  geom_vline(xintercept = 25, color="black", linetype=2) +
+  geom_vline(xintercept = 75, color="black", linetype=2) +
+  geom_vline(xintercept = 125, color="black", linetype=2) +
+  geom_vline(xintercept = 175, color="black", linetype=2) +
+  geom_vline(xintercept = 225, color="black", linetype=2) +
+  theme_bw() +
+  labs(x="Distance to Plaque", y="Density of Cells", color=NULL) +
+  theme(legend.position = "bottom")
+ggsave(paste0(out_dir, "sample_plaque_distances.density_bin_lines.png"), width=6, height=5)
+
+# put the cells in these bins
+sample_min_dists_df$dist_bin <- ""
+
+for (bin_name in names(distance_bins)) {
+  
+  start <- distance_bins[[bin_name]][1]
+  stop <- distance_bins[[bin_name]][2]
+  
+  sample_min_dists_df[sample_min_dists_df$surface_dist >= start &
+                        sample_min_dists_df$surface_dist < stop,]$dist_bin <- bin_name
+  
+}
+
+# cell fractions across bins
+
+cell_frac_bins <- lapply(names(distance_bins), function(bin_name) {
+  
+  sample_fracs <- lapply(sample_ids, function(id) {
+    
+    dists <- sample_min_dists_df[sample_min_dists_df$dist_bin == bin_name &
+                                   sample_min_dists_df$sample_id == id,]
+    
+    celltype_counts <- as.data.frame(table(dists$Cell.Type),
+                                     stringsAsFactors=F)
+    colnames(celltype_counts) <- c("Cell.Type", "count")
+    
+    celltype_counts$bin_frac <- celltype_counts$count / sum(celltype_counts$count)
+    
+    celltype_counts$sample_id <- id
+    
+    celltype_counts <- merge(celltype_counts,
+                             sample_celltype_counts[,c("sample_id","Cell.Type","total_frac")],
+                             by=c("sample_id","Cell.Type"))
+    celltype_counts$delta_frac <- celltype_counts$bin_frac - celltype_counts$total_frac
+    
+    return(celltype_counts)
+    
+  })
+  
+  sample_fracs <- bind_rows(sample_fracs)
+  
+  sample_fracs$dist_bin <- bin_name
+  
+  return(sample_fracs)
+})
+cell_frac_bins <- bind_rows(cell_frac_bins)
+
+cell_frac_bins$sample_id <- factor(as.character(cell_frac_bins$sample_id),
+                                   levels=sample_order)
+cell_frac_bins$dist_bin <- factor(as.character(cell_frac_bins$dist_bin),
+                                  levels=names(distance_bins))
+
+ggplot(cell_frac_bins,
+       aes(y=Cell.Type,
+           x=delta_frac*100,
+           fill=dist_bin)) +
+  geom_jitter(pch=21, height=0.2, size=3) +
+  theme_bw() +
+  facet_wrap(~ sample_id, ncol=2) +
+  geom_vline(xintercept = 0, color="blue") +
+  scale_fill_brewer(palette="Reds", direction=-1) +
+  labs(x="Cell Percentage Increase", y=NULL, fill="Distance\nTo Plaque")
+ggsave(paste0(out_dir, "bin_cell_percentage_increase.jitter.png"),
+       width=10, height=7)
+
+
+
 
