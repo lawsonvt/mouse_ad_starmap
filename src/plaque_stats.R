@@ -149,7 +149,7 @@ ggplot(plaque_cents_df_f,
            color=sample_id)) +
   scale_color_nejm() +
   scale_x_log10() +
-  geom_density() +
+  geom_density(linewidth = 2) +
   theme_bw() +
   labs(x="Plague Volume (in um^3)", y="Density", color=NULL)
 ggsave(paste0(out_dir, "plaque_size_per_sample.density.png"), width=6, height=4)
