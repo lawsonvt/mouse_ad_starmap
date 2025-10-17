@@ -395,6 +395,8 @@ cell_frac_bins$sample_id <- factor(as.character(cell_frac_bins$sample_id),
 cell_frac_bins$dist_bin <- factor(as.character(cell_frac_bins$dist_bin),
                                   levels=names(distance_bins))
 
+cell_frac_bins <- cell_frac_bins[order(cell_frac_bins$delta_frac),]
+
 ggplot(cell_frac_bins,
        aes(y=Cell.Type,
            x=delta_frac*100,
@@ -407,6 +409,24 @@ ggplot(cell_frac_bins,
   labs(x="Cell Percentage Increase", y=NULL, fill="Distance\nTo Plaque")
 ggsave(paste0(out_dir, "bin_cell_percentage_increase.jitter.png"),
        width=10, height=7)
+
+# plot with just the diseased
+
+ggplot(cell_frac_bins[cell_frac_bins$sample_id %in%
+                        c("C158B_APPPS19","C165_APPPS19"),],
+       aes(y=Cell.Type,
+           x=delta_frac*100,
+           fill=dist_bin)) +
+  geom_jitter(pch=21, height=0.2, size=3) +
+  theme_bw() +
+  facet_wrap(~ sample_id, ncol=2) +
+  geom_vline(xintercept = 0, color="blue") +
+  scale_fill_brewer(palette="Reds", direction=-1) +
+  labs(x="Cell Percentage Increase", y=NULL, fill="Distance\nTo Plaque")
+ggsave(paste0(out_dir, "bin_cell_percentage_increase.just_disease.jitter.png"),
+       width=9, height=5)
+
+
 
 
 
