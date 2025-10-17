@@ -426,7 +426,55 @@ ggplot(cell_frac_bins[cell_frac_bins$sample_id %in%
 ggsave(paste0(out_dir, "bin_cell_percentage_increase.just_disease.jitter.png"),
        width=9, height=5)
 
+# new plot, histogram of cell distances for specific cell types
 
+ggplot(sample_min_dists_df[sample_min_dists_df$Cell.Type == "Microglia",],
+       aes(x=surface_dist,
+           fill=sample_id)) +
+  geom_histogram( binwidth = 5) +
+  facet_wrap(~ sample_id, ncol=2) +
+  scale_fill_nejm() +
+  theme_bw()+
+  guides(fill="none") +
+  labs(x="Distance to Plaque", y="Cell Counts", title="Microglia Cells")
+ggsave(paste0(out_dir, "sample_plaque_distances.microglia.bar.png"), width=8, height=5)
+
+ggplot(sample_min_dists_df[sample_min_dists_df$Cell.Type == "Microglia",],
+       aes(x=surface_dist,
+           color=sample_id)) +
+  geom_density(linewidth = 2) +
+  scale_color_nejm() +
+  scale_fill_nejm() +
+  theme_bw() +
+  labs(x="Distance to Plaque", y="Density of Cells", color=NULL,
+       title="Microglia Cells") +
+  theme(legend.position = "bottom")
+ggsave(paste0(out_dir, "sample_plaque_distances.microglia.density.png"), width=6, height=5)
+
+
+ggplot(sample_min_dists_df[sample_min_dists_df$Cell.Type == "Choroid plexus",],
+       aes(x=surface_dist,
+           fill=sample_id)) +
+  geom_histogram( binwidth = 5) +
+  facet_wrap(~ sample_id, ncol=2) +
+  scale_fill_nejm() +
+  theme_bw()+
+  guides(fill="none") +
+  labs(x="Distance to Plaque", y="Cell Counts", title="Choroid plexus Cells")
+ggsave(paste0(out_dir, "sample_plaque_distances.choroid_plexus.bar.png"), width=8, height=5)
+
+
+ggplot(sample_min_dists_df[sample_min_dists_df$Cell.Type == "Choroid plexus",],
+       aes(x=surface_dist,
+           color=sample_id)) +
+  geom_density(linewidth = 2) +
+  scale_color_nejm() +
+  scale_fill_nejm() +
+  theme_bw() +
+  labs(x="Distance to Plaque", y="Density of Cells", color=NULL,
+       title="Choroid plexus Cells") +
+  theme(legend.position = "bottom")
+ggsave(paste0(out_dir, "sample_plaque_distances.choroid_plexus.density.png"), width=6, height=5)
 
 
 
