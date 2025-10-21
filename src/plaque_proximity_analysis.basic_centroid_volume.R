@@ -477,5 +477,18 @@ ggplot(sample_min_dists_df[sample_min_dists_df$Cell.Type == "Choroid plexus",],
 ggsave(paste0(out_dir, "sample_plaque_distances.choroid_plexus.density.png"), width=6, height=5)
 
 
+# new plot, bin per cell type
+ggplot(cell_frac_bins,
+       aes(x=dist_bin,
+           y=delta_frac*100,
+           fill=sample_id)) +
+  geom_bar(stat="identity", position = "dodge") +
+  facet_wrap(~ Cell.Type, ncol=5) +
+  theme_bw() +
+  theme(axis.text.x=element_text(angle=35, hjust=1),
+        legend.position = "bottom") +
+  scale_fill_nejm() +
+  labs(x="Distance to Plaque", y="Cell Percentage Increase", fill=NULL)
+
 
 
