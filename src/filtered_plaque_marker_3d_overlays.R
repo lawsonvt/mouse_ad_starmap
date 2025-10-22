@@ -43,23 +43,27 @@ cell_color_meta <- merge(cell_metadata[,c("cell_id","Cell.Type")],
                          by="Cell.Type")
 rownames(cell_color_meta) <- cell_color_meta$cell_id
 
-# convert to giotto object ...
-m3d_g <- spatialExperimentToGiotto(m3d_se)
-# add in z axis, since it does not get added
-m3d_g@spatial_locs$cell$raw$sdimz <- spatialCoords(m3d_se)[,"Z"]
+# load in transcript level data
+sample_trans_locs <- list(C165_APPPS19=read.csv("../WT_v_APP_PS19/data/C165_APPPS19/C165_APPPS19_cell_assigned_counts.csv"),
+                          C164B_WT=read.csv("../WT_v_APP_PS19/data/C164B_WT/C164B_WT_cell_assigned_counts.csv"),
+                          C166A_WT=read.csv("../WT_v_APP_PS19/data/C166A_WT/C166A_WT_cell_assigned_counts.csv"),
+                          C158B_APPPS19=read.csv("../WT_v_APP_PS19/data/C158B_APPPS19/C158B_APPPS19_cell_assigned_counts.csv"))
 
-# split into samples
-sample_ids <- unique(cell_metadata$sample_cond)
+sample_ids <- names(sample_trans_locs)
 
-# separate out samples by subsetting
-m3d_samples <- lapply(sample_ids, function(id) {
+# find the markers
+endo_markers <- c("Cldn5","Igf2","Rgs5")
+
+sample_trans_locs <- lapply(sample_ids, function(id) {
   
-  cell_ids <- rownames(cell_metadata[cell_metadata$sample_cond == id,])
+  data <- sample_trans_locs[[id]]
+  data <- data[data$Gene %in% endo_markers,]
+  data$sample_id <- id
   
-  subset(m3d_g, cell_ids=cell_ids)
+  return(data)
   
 })
-names(m3d_samples) <- sample_ids
+names(sample_trans_locs) <- sample_ids
 
 # read in plaque cengtroids
 plaque_cents <- list(C165_APPPS19=read.csv("../WT_v_APP_PS19/data/plaque_csv_files/C165_APPPS19_plaque_centers_unfiltered_shifted_um.csv"),
@@ -87,93 +91,61 @@ plaque_cents_df <- bind_rows(plaque_cents)
 # scale them all together
 plaque_cents_df$size_scaled <- scales::rescale(log10(plaque_cents_df$total_um + 1), to = c(3, 18))
 
-# find the markers
-endo_markers <- c("Cldn5","Igf2","Rgs5")
-
+# make real ratio plots
 for (id in sample_ids) {
   
-  g <- m3d_samples[[id]]
-  
-  # normalize expression values
-  g <- processExpression(g, normParam("default"), expression_values = "raw")
-  
-  expr_values <- getExpression(g,
-                               output="matrix",
-                               values = "normalized")[endo_markers,]
-  
-  thresholds <- apply(expr_values, 1, function(x) quantile(x, 0.50, na.rm=T))
-  
-  # Step 4: Identify cells with high expression of ALL three genes
-  high_expr_cells <- colnames(expr_values)[
-    expr_values["Cldn5", ] > thresholds["Cldn5"] &
-      expr_values["Igf2", ] > thresholds["Igf2"] &
-      expr_values["Rgs5", ] > thresholds["Rgs5"]
-  ]
-  
-  high_expr_cells <- high_expr_cells[!is.na(high_expr_cells)]
-  
-  
-  sample_cell_metadata <- pDataDT(g)
-  sample_cell_metadata$marker_cluster <- ifelse(
-    sample_cell_metadata$cell_ID %in% high_expr_cells,
-    "Endothelia Markers",
-    "Other"
-  )
-  
-  # Add this metadata back to the Giotto object
-  g <- addCellMetadata(g,
-                             new_metadata = sample_cell_metadata,
-                             by_column = TRUE,
-                             column_cell_ID = "cell_ID")
-  
-  spatPlot2D(g,
-             cell_color = "marker_cluster",
-             select_cell_groups = "Endothelia Markers",
-             point_size = 1,
-             other_cell_color = "grey",
-             cell_color_code = c("Endothelia Markers" = "red"),
-             show_legend = TRUE,
-             legend_text = 10)
-  
-  # code for plotting
+  # plaque data
   plaque_meta <- plaque_cents_df[plaque_cents_df$sample_id == id,]
   
-  sample_cell_metadata$marker_color <- ifelse(sample_cell_metadata$marker_cluster == "Endothelia Markers",
-                                              "red",
-                                              "lightgrey")
+  # transcript data
+  trans_meta <- sample_trans_locs[[id]]
+  # filter down location
+  trans_meta <- trans_meta[trans_meta$Z_global_um < 30,]
   
-  sample_cell_metadata$marker_opacity <- ifelse(sample_cell_metadata$marker_cluster == "Endothelia Markers",
-                                                0.8,
-                                                0.3)
-  
-  cell_locs <- sample_cell_metadata[sample_cell_metadata$Z < 30,]
+  # cell data
+  cell_meta <- cell_metadata[cell_metadata$sample_cond == id,]
+  cell_meta <- cell_meta[cell_meta$Z < 30,]
   
   # Create interactive 3D plot
   fig <- plot_ly()
   
-  # Add cells by cell type (one trace per cell type for proper legend)
-  unique_cell_types <- sort(unique(cell_locs$marker_cluster))
+  # first add in cells
+  fig <- fig %>%
+    add_trace(
+      data = as.data.frame(cell_meta),
+      x = ~X, y = ~Y, z = ~Z,
+      type = "scatter3d",
+      mode = "markers",
+      marker = list(
+        size = 4,
+        color = "grey",
+        opacity = 0.3
+      ),
+      name = "Cells",
+      visible = TRUE,  # All visible by default
+      hoverinfo = "text",
+      text = ~paste("Cell ID:", cell_id, "<br>Cell Type:", Cell.Type)
+    )
   
-  for(ct in unique_cell_types) {
-    ct_data <- cell_locs[cell_locs$marker_cluster == ct, ]
-    
-    fig <- fig %>%
-      add_trace(
-        data = as.data.frame(ct_data),
-        x = ~X, y = ~Y, z = ~Z,
-        type = "scatter3d",
-        mode = "markers",
-        marker = list(
-          size = 4,
-          color = unique(ct_data$marker_color),
-          opacity = unique(ct_data$marker_opacity)
-        ),
-        name = ct,
-        visible = TRUE,  # All visible by default
-        hoverinfo = "text",
-        text = ~paste("Cell ID:", cell_ID, "<br>Cell Type:", marker_cluster)
-      )
-  }
+  # next add in transcripts
+  fig <- fig %>%
+    add_trace(
+      data = as.data.frame(trans_meta),
+      x = ~X_global_um, 
+      y = ~Y_global_um, 
+      z = ~Z_global_um,
+      type = "scatter3d",
+      mode = "markers",
+      marker = list(
+        size = 2,
+        color = "firebrick",
+        opacity = 0.7
+      ),
+      name = "Endothelial Marker\nTransscripts",
+      visible = TRUE,  # All visible by default
+      hoverinfo = "text",
+      text = ~paste("Cell ID:", cell_id, "<br>Gene Name:", Gene)
+    )
   
   # Add plaques with log-scaled sizes
   fig <- fig %>%
@@ -184,22 +156,7 @@ for (id in sample_ids) {
       mode = "markers",
       marker = list(
         size = ~size_scaled,
-        #        color = ~log10(total_um + 1),
-        #        colorscale = "Greys",
-        #        reversescale=T,
         color="black",
-        #cmin = volume_min,  # Fixed minimum
-        #cmax = volume_max,  # Fixed maximum
-        #showscale = TRUE,
-        #colorbar = list(
-        #  title = "log10(Volume)<br>(μm³)",
-        #  thickness = 20,
-        #  len = 0.5,
-        #  x = -0.1,
-        #  y = 0.5,
-        #  xanchor = "right",
-        #  yanchor = "middle"
-        #),
         line = list(color = "black", width = 1)
       ),
       name = "Plaques",
@@ -244,10 +201,125 @@ for (id in sample_ids) {
   # Display the plot
   fig
   
-  htmlwidgets::saveWidget(fig, paste0(out_dir, id, ".cells_plaque_3d.html"), selfcontained = TRUE)
+  htmlwidgets::saveWidget(fig, paste0(out_dir, id, ".cells_endothelial_transcripts_plaque_3d.real.html"), selfcontained = TRUE)
   
 }
 
+
+# make scaled ratio plots
+for (id in sample_ids) {
+  
+  # plaque data
+  plaque_meta <- plaque_cents_df[plaque_cents_df$sample_id == id,]
+  
+  # transcript data
+  trans_meta <- sample_trans_locs[[id]]
+  # filter down location
+  trans_meta <- trans_meta[trans_meta$Z_global_um < 30,]
+  
+  # cell data
+  cell_meta <- cell_metadata[cell_metadata$sample_cond == id,]
+  cell_meta <- cell_meta[cell_meta$Z < 30,]
+  
+  # Create interactive 3D plot
+  fig <- plot_ly()
+  
+  # first add in cells
+  fig <- fig %>%
+    add_trace(
+      data = as.data.frame(cell_meta),
+      x = ~X, y = ~Y, z = ~Z,
+      type = "scatter3d",
+      mode = "markers",
+      marker = list(
+        size = 4,
+        color = "grey",
+        opacity = 0.3
+      ),
+      name = "Cells",
+      visible = TRUE,  # All visible by default
+      hoverinfo = "text",
+      text = ~paste("Cell ID:", cell_id, "<br>Cell Type:", Cell.Type)
+    )
+  
+  # next add in transcripts
+  fig <- fig %>%
+    add_trace(
+      data = as.data.frame(trans_meta),
+      x = ~X_global_um, 
+      y = ~Y_global_um, 
+      z = ~Z_global_um,
+      type = "scatter3d",
+      mode = "markers",
+      marker = list(
+        size = 2,
+        color = "firebrick",
+        opacity = 0.7
+      ),
+      name = "Endothelial Marker\nTransscripts",
+      visible = TRUE,  # All visible by default
+      hoverinfo = "text",
+      text = ~paste("Cell ID:", cell_id, "<br>Gene Name:", Gene)
+    )
+  
+  # Add plaques with log-scaled sizes
+  fig <- fig %>%
+    add_trace(
+      data = plaque_meta,
+      x = ~x_um, y = ~y_um, z = ~z_um,
+      type = "scatter3d",
+      mode = "markers",
+      marker = list(
+        size = ~size_scaled,
+        color="black",
+        line = list(color = "black", width = 1)
+      ),
+      name = "Plaques",
+      visible = TRUE,
+      hoverinfo = "text",
+      text = ~paste(
+        "Plaque ID:", plaque_id,
+        "<br>Volume:", round(total_um, 4), "μm³",
+        "<br>log10(Volume):", round(log10(total_um + 1), 2),
+        "<br>Pixels:", total_pixels
+      )
+    )
+  
+  # Update layout with toggle mode for multi-select
+  fig <- fig %>%
+    layout(
+      scene = list(
+        xaxis = list(title = "X (μm)"),
+        yaxis = list(title = "Y (μm)"),
+        zaxis = list(title = "Z (μm)"),
+        aspectmode = "manual",
+        aspectratio = list(x = 1, y = 0.7, z = 0.7),
+        camera = list(
+          eye = list(x = 1.5, y = 1.5, z = 1.5)
+        )
+      ),
+      title = paste0(id, "\n3D Spatial Transcriptomics with Plaque Centroids<br><sub>Click legend items to show/hide cell types</sub>"),
+      showlegend = TRUE,
+      legend = list(
+        x = 1.02,
+        y = 0.5,
+        xanchor = "left",
+        yanchor = "middle",
+        itemsizing = "constant",
+        itemclick = "toggle",      # Click to toggle individual traces on/off
+        itemdoubleclick = T,   # Disable double-click behavior
+        bgcolor = "rgba(255, 255, 255, 0.8)",
+        bordercolor = "gray",
+        borderwidth = 1
+      )
+    )
+  
+  # Display the plot
+  fig
+  
+  htmlwidgets::saveWidget(fig, paste0(out_dir, id, ".cells_endothelial_transcripts_plaque_3d.scaled.html"), selfcontained = TRUE)
+  
+}
 # zip it up
 curr_wd <- getwd()
 
@@ -257,4 +329,166 @@ zip(zipfile = "endo_marker_plaque_plots.zip",
     files=list.files(".", pattern="\\.html$"))
 
 setwd(curr_wd)
+
+
+# # THIS IS THE WRONG WAY!!!
+# 
+# for (id in sample_ids) {
+#   
+#   g <- m3d_samples[[id]]
+#   
+#   # normalize expression values
+#   g <- processExpression(g, normParam("default"), expression_values = "raw")
+#   
+#   expr_values <- getExpression(g,
+#                                output="matrix",
+#                                values = "normalized")[endo_markers,]
+#   
+#   thresholds <- apply(expr_values, 1, function(x) quantile(x, 0.50, na.rm=T))
+#   
+#   # Step 4: Identify cells with high expression of ALL three genes
+#   high_expr_cells <- colnames(expr_values)[
+#     expr_values["Cldn5", ] > thresholds["Cldn5"] &
+#       expr_values["Igf2", ] > thresholds["Igf2"] &
+#       expr_values["Rgs5", ] > thresholds["Rgs5"]
+#   ]
+#   
+#   high_expr_cells <- high_expr_cells[!is.na(high_expr_cells)]
+#   
+#   
+#   sample_cell_metadata <- pDataDT(g)
+#   sample_cell_metadata$marker_cluster <- ifelse(
+#     sample_cell_metadata$cell_ID %in% high_expr_cells,
+#     "Endothelia Markers",
+#     "Other"
+#   )
+#   
+#   # Add this metadata back to the Giotto object
+#   g <- addCellMetadata(g,
+#                              new_metadata = sample_cell_metadata,
+#                              by_column = TRUE,
+#                              column_cell_ID = "cell_ID")
+#   
+#   spatPlot2D(g,
+#              cell_color = "marker_cluster",
+#              select_cell_groups = "Endothelia Markers",
+#              point_size = 1,
+#              other_cell_color = "grey",
+#              cell_color_code = c("Endothelia Markers" = "red"),
+#              show_legend = TRUE,
+#              legend_text = 10)
+#   
+#   # code for plotting
+#   plaque_meta <- plaque_cents_df[plaque_cents_df$sample_id == id,]
+#   
+#   sample_cell_metadata$marker_color <- ifelse(sample_cell_metadata$marker_cluster == "Endothelia Markers",
+#                                               "red",
+#                                               "lightgrey")
+#   
+#   sample_cell_metadata$marker_opacity <- ifelse(sample_cell_metadata$marker_cluster == "Endothelia Markers",
+#                                                 0.8,
+#                                                 0.3)
+#   
+#   cell_locs <- sample_cell_metadata[sample_cell_metadata$Z < 30,]
+#   
+#   # Create interactive 3D plot
+#   fig <- plot_ly()
+#   
+#   # Add cells by cell type (one trace per cell type for proper legend)
+#   unique_cell_types <- sort(unique(cell_locs$marker_cluster))
+#   
+#   for(ct in unique_cell_types) {
+#     ct_data <- cell_locs[cell_locs$marker_cluster == ct, ]
+#     
+#     fig <- fig %>%
+#       add_trace(
+#         data = as.data.frame(ct_data),
+#         x = ~X, y = ~Y, z = ~Z,
+#         type = "scatter3d",
+#         mode = "markers",
+#         marker = list(
+#           size = 4,
+#           color = unique(ct_data$marker_color),
+#           opacity = unique(ct_data$marker_opacity)
+#         ),
+#         name = ct,
+#         visible = TRUE,  # All visible by default
+#         hoverinfo = "text",
+#         text = ~paste("Cell ID:", cell_ID, "<br>Cell Type:", marker_cluster)
+#       )
+#   }
+#   
+#   # Add plaques with log-scaled sizes
+#   fig <- fig %>%
+#     add_trace(
+#       data = plaque_meta,
+#       x = ~x_um, y = ~y_um, z = ~z_um,
+#       type = "scatter3d",
+#       mode = "markers",
+#       marker = list(
+#         size = ~size_scaled,
+#         #        color = ~log10(total_um + 1),
+#         #        colorscale = "Greys",
+#         #        reversescale=T,
+#         color="black",
+#         #cmin = volume_min,  # Fixed minimum
+#         #cmax = volume_max,  # Fixed maximum
+#         #showscale = TRUE,
+#         #colorbar = list(
+#         #  title = "log10(Volume)<br>(μm³)",
+#         #  thickness = 20,
+#         #  len = 0.5,
+#         #  x = -0.1,
+#         #  y = 0.5,
+#         #  xanchor = "right",
+#         #  yanchor = "middle"
+#         #),
+#         line = list(color = "black", width = 1)
+#       ),
+#       name = "Plaques",
+#       visible = TRUE,
+#       hoverinfo = "text",
+#       text = ~paste(
+#         "Plaque ID:", plaque_id,
+#         "<br>Volume:", round(total_um, 4), "μm³",
+#         "<br>log10(Volume):", round(log10(total_um + 1), 2),
+#         "<br>Pixels:", total_pixels
+#       )
+#     )
+#   
+#   # Update layout with toggle mode for multi-select
+#   fig <- fig %>%
+#     layout(
+#       scene = list(
+#         xaxis = list(title = "X (μm)"),
+#         yaxis = list(title = "Y (μm)"),
+#         zaxis = list(title = "Z (μm)"),
+#         aspectmode = "data",
+#         camera = list(
+#           eye = list(x = 1.5, y = 1.5, z = 1.5)
+#         )
+#       ),
+#       title = paste0(id, "\n3D Spatial Transcriptomics with Plaque Centroids<br><sub>Click legend items to show/hide cell types</sub>"),
+#       showlegend = TRUE,
+#       legend = list(
+#         x = 1.02,
+#         y = 0.5,
+#         xanchor = "left",
+#         yanchor = "middle",
+#         itemsizing = "constant",
+#         itemclick = "toggle",      # Click to toggle individual traces on/off
+#         itemdoubleclick = T,   # Disable double-click behavior
+#         bgcolor = "rgba(255, 255, 255, 0.8)",
+#         bordercolor = "gray",
+#         borderwidth = 1
+#       )
+#     )
+#   
+#   # Display the plot
+#   fig
+#   
+#   htmlwidgets::saveWidget(fig, paste0(out_dir, id, ".cells_plaque_3d.html"), selfcontained = TRUE)
+#   
+# }
+
 
