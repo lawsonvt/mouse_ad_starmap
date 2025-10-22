@@ -33,6 +33,14 @@ sample_order <- c("C164B_WT","C158B_APPPS19",
 raw_samples <- list(C165_APPPS19=read.csv("../WT_v_APP_PS19/data/C165_APPPS19/C165_APPPS19_cell_metadata.csv"),
                     C158B_APPPS19=read.csv("../WT_v_APP_PS19/data/C158B_APPPS19/C158B_APPPS19_cell_metadata.csv"))
 
+# clean up files
+raw_samples <- lapply(raw_samples, function(data) {
+  
+  data$X <- NULL
+  
+  return(data)
+})
+
 # read in new plaque centroids
 plaque_cents <- list(C165_APPPS19=read.csv("../WT_v_APP_PS19/data/plaque_boundary_csvs/well4_c165_appps19_plaque_centroids.csv"),
                      C158B_APPPS19=read.csv("../WT_v_APP_PS19/data/plaque_boundary_csvs/well11_c158b_appps19_plaque_centroids.csv"))
@@ -262,5 +270,9 @@ ggplot(sample_dist_bin_cell_counts,
   scale_fill_manual(values=c("#0072B5FF","#20854EFF")) +
   labs(x="Pixel Distance", y="Cell Percentage Increase", fill=NULL)
 ggsave(paste0(out_dir, "plaque_dist.cell_percent_increase.png"), width=12, height=8)
+
+# save the distances
+saveRDS(sample_min_dists_df, file=paste0(out_dir, "cell_plaque_min_distances.RDS"))
+
 
 
