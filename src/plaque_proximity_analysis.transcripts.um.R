@@ -160,7 +160,7 @@ ggplot(sample_min_dists_df,
   theme_bw() +
   labs(x="μm Distance to Plaque", y="Density of Transcripts", color=NULL) +
   theme(legend.position = "bottom")
-ggsave(paste0(out_dir, "transcript_plaque_dist_density_plot.png"), width=5, height=5)
+ggsave(paste0(out_dir, "transcript_plaque_dist_density_plot.png"), width=5, height=4)
 
 
 # for normalization, what are the gene type counts per sample
