@@ -31,8 +31,8 @@ sample_order <- c("C164B_WT","C158B_APPPS19",
 
 
 # read in new plaque centroids
-plaque_cents <- list(C165_APPPS19=read.csv("../WT_v_APP_PS19/data/plaque_boundary_csvs/well4_c165_appps19_plaque_centroids_um.csv"),
-                     C158B_APPPS19=read.csv("../WT_v_APP_PS19/data/plaque_boundary_csvs/well11_c158b_appps19_plaque_centroids_um.csv"))
+plaque_cents <- list(C165_APPPS19=read.csv("../WT_v_APP_PS19/data/plaque_boundary_csvs/well4_c165_appps19_plaque_centroids_um_with_volume.csv"),
+                     C158B_APPPS19=read.csv("../WT_v_APP_PS19/data/plaque_boundary_csvs/well11_c158b_appps19_plaque_centroids_um_with_volume.csv"))
 
 sample_ids <- names(plaque_cents)
 
@@ -69,8 +69,6 @@ names(plaque_cents_old) <- sample_ids
 plaque_cents_old_df <- bind_rows(plaque_cents_old)
 
 min_plaque_size <- min(plaque_cents_old_df[plaque_cents_old_df$total_um >= 20,]$total_pixels)
-
-
 
 # pull in boundary data
 plaque_bounds <- list(C165_APPPS19=read.csv("../WT_v_APP_PS19/data/plaque_boundary_csvs/well4_c165_appps19_plaque_boundaries_um.csv"),
@@ -128,8 +126,11 @@ spacing_stats <- analyze_all_plaque_spacing(plaque_bounds_df)
 # filter down data to lower 30 Z locations
 
 cell_metadata <- cell_metadata[cell_metadata$Z < 30,]
+# plaque_cents_df <- plaque_cents_df[plaque_cents_df$z_um < 30 &
+#                                      plaque_cents_df$area > min_plaque_size,]
+
 plaque_cents_df <- plaque_cents_df[plaque_cents_df$z_um < 30 &
-                                     plaque_cents_df$area > min_plaque_size,]
+                                     plaque_cents_df$total_volume_um3 > 20,]
 
 plaque_bounds_df <- plaque_bounds_df[plaque_bounds_df$plaque_id %in% plaque_cents_df$plaque_id,]
 
