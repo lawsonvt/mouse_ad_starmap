@@ -310,4 +310,89 @@ ggplot(subset,
   labs(x="μm Distance To Plaque", y="Cell Percentage Increase", fill=NULL)
 ggsave(paste0(out_dir, "plaque_dist.subset.cell_percent_increase.png"), width=7, height=5)
 
+# custom plots as requested by Stellaromics ---------------------------------------
+
+stellar_colors <- c("#5db7c0", "#123050")
+
+
+stellar_cells <- c("Astrocyte",
+                   "Choroid plexus",
+                   "E_Cck_Tcf4",
+                   "E_Pou3f1_Cck",
+                   "E_Tbr1_Id2",
+                   "E_Tshz2_Lamp5",
+                   "E_Zic1_Syt9",
+                   "Oligodendrocyte")
+
+# fix the scale
+ymax <- max(sample_dist_bin_cell_counts[sample_dist_bin_cell_counts$Cell.Type %in% stellar_cells,]$delta_frac)*100
+ymin <- min(sample_dist_bin_cell_counts[sample_dist_bin_cell_counts$Cell.Type %in% stellar_cells,]$delta_frac)*100
+
+plot_dir <- paste0(out_dir, "fixed_scale_percent_increase_plots/")
+dir.create(plot_dir, showWarnings = F)
+
+for (cell in stellar_cells) {
+  
+  ggplot(sample_dist_bin_cell_counts[sample_dist_bin_cell_counts$Cell.Type == cell,],
+         aes(x=dist_bin,
+             y=delta_frac*100,
+             fill=sample_cond)) +
+    geom_bar(stat="identity", position = "dodge") +
+    theme_bw() +
+    theme(axis.text.x=element_text(angle=35, hjust=1),
+          legend.position = "bottom") +
+    scale_fill_manual(values=stellar_colors) +
+    ylim(ymin, ymax) +
+    labs(x="μm Distance To Plaque", y="Cell Percentage Increase", fill=NULL,
+         title=cell)
+  ggsave(paste0(plot_dir, cell, ".percent_increase.png"), width=5, height=4)
+  
+}
+
+plot_dir <- paste0(out_dir, "free_scale_percent_increase_plots/")
+dir.create(plot_dir, showWarnings = F)
+
+for (cell in stellar_cells) {
+  
+  ggplot(sample_dist_bin_cell_counts[sample_dist_bin_cell_counts$Cell.Type == cell,],
+         aes(x=dist_bin,
+             y=delta_frac*100,
+             fill=sample_cond)) +
+    geom_bar(stat="identity", position = "dodge") +
+    theme_bw() +
+    theme(axis.text.x=element_text(angle=35, hjust=1),
+          legend.position = "bottom") +
+    scale_fill_manual(values=stellar_colors) +
+    labs(x="μm Distance To Plaque", y="Cell Percentage Increase", fill=NULL,
+         title=cell)
+  ggsave(paste0(plot_dir, cell, ".percent_increase.png"), width=5, height=4)
+  
+}
+
+# plaque size distribution
+
+ggplot(plaque_cents_df,
+       aes(x=total_volume_um3,
+           fill=sample_id)) +
+  geom_histogram(binwidth = 20) +
+  facet_wrap(~ sample_id, ncol=1) +
+  theme_bw()
+
+plaque_max <- max(plaque_cents_df$total_volume_um3)
+
+ggplot(plaque_cents_df,
+       aes(x=total_volume_um3,
+           color=sample_id)) +
+  geom_density(linewidth=2) +
+  theme_bw() +
+  scale_x_log10(breaks=c(20, 50, 100, 250, 500, 1000, 2000, round(plaque_max))) +
+  scale_color_manual(values=stellar_colors) +
+  theme(legend.position = "bottom") +
+  labs(x="Total Plaque Volume (μm^3)", y="Density of Plaques", color=NULL)
+ggsave(paste0(out_dir, "plaque_size_density.png"), width=5, height=4)
+
+
+
+
+
 
