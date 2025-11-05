@@ -395,7 +395,7 @@ ggsave(paste0(out_dir, "plaque_size_density.png"), width=5, height=4)
 ggplot(sample_min_dists_df,
        aes(x=min_plaque_dist,
            color=sample_cond)) +
-  geom_density(linewidth = 1) +
+  geom_density(linewidth = 2) +
   scale_color_manual(values=stellar_colors) +
   theme_bw() +
   labs(x="μm Distance to Plaque", y="Density of Cells", color=NULL) +
