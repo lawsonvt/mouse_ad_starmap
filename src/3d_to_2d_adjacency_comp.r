@@ -197,6 +197,27 @@ ggplot(connect_sums,
 ggsave(paste0(out_dir, "mean_connected_cells.density_per_sample.png"),
        width=6, height=5)
 
+# redo plot with hidden names
+levels(connect_sums$sample_id) <- c("WT, Sample 1",
+                                    "APP/PS19, Sample 1",
+                                    "WT, Sample 2",
+                                    "APP/PS19, Sample 2")
+
+
+ggplot(connect_sums,
+       aes(x=cell_count,
+           fill=type)) +
+  geom_density(adjust=3) +
+  facet_wrap(~ sample_id, ncol=2) +
+  theme_bw() +
+  scale_fill_manual(values=c("grey","maroon")) +
+  scale_x_continuous(breaks=seq(0,40,by=5)) +
+  theme(legend.position = "bottom") +
+  labs(x="Number of Connected Cells",
+       y="Density of Cells",
+       fill=NULL)
+ggsave(paste0(out_dir, "mean_connected_cells.density_per_sample.presentation.png"),
+       width=5, height=4)
 
 
 
