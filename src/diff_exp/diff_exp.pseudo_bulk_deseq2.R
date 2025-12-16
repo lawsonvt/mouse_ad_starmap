@@ -89,7 +89,7 @@ deg_results <- lapply(cell_types, function(cell_type) {
   # run DESeq
   dds <- DESeq(dds)
   
-  res <- results(dds, contrast = c("type", "WT", "APP-PS19"))
+  res <- results(dds, contrast = c("type", "APP-PS19", "WT"))
   
   res <- as.data.frame(res)
   res <- res[order(res$pvalue),]
@@ -108,11 +108,11 @@ names(deg_results) <- cell_types
 deg_results_df <- bind_rows(deg_results)
 
 # write to excel
-write.xlsx(deg_results, file=paste0(out_dir, "degs.wt_minus_app_ps19.xlsx"),
+write.xlsx(deg_results, file=paste0(out_dir, "degs.app_ps19_minus_wt.xlsx"),
            colWidths="auto")
 
 # save for future analyses
-saveRDS(deg_results, file=paste0(out_dir, "degs.wt_minus_app_ps19.RDS"))
+saveRDS(deg_results, file=paste0(out_dir, "degs.app_ps19_minus_wt.RDS"))
 
 # look at sig ones
 sig_deg_results_df <- deg_results_df[deg_results_df$padj < 0.1,]
