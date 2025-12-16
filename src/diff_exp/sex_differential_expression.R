@@ -149,7 +149,7 @@ ggplot(sig_diff_exp_results,
   theme_bw() +
   theme(legend.position = "bottom") +
   labs(x="DEGs at FDR < 0.05", y=NULL, title="Sex Differences in Gene Expression",
-       fill="Mouse Model")
+       fill="Mouse Model") + scale_fill_manual(values=c("maroon","orange"))
 ggsave(paste0(out_dir, "sex_degs.bar_plot.png"), width=7, height=5)
 
 # spot checks!
