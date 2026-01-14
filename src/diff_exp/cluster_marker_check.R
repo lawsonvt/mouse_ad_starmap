@@ -112,6 +112,39 @@ DimPlot(m3d_seurat, reduction = "X_umap", group.by = "rna_Cell.Type",
   theme(legend.position = "none")
 ggsave(paste0(out_dir, "clusters_per_sample_umap.png"), width=14, height=12)
 
+m3d_seurat@meta.data$rna_Condition <- factor(as.character(m3d_seurat@meta.data$rna_Condition),
+                                             levels=c("WT", "APPPS19"))
+
+DimPlot(m3d_seurat, reduction = "X_umap", group.by = "rna_Cell.Type",
+        split.by = "rna_Condition",
+        label=T, cols=cell_colors, label.box=F, label.color = "black", alpha=1, 
+        label.size = 3, raster=F, ncol=2) +
+  labs(x="UMAP 1", y="UMAP 2", title="Cell Types")
+ggsave(paste0(out_dir, "clusters_per_condition_umap.png"), width=17, height=8)
+
+# cell counts bar plots
+
+sample_cond_levels <- c("C164B_WT","C166A_WT","C158B_APPPS19","C165_APPPS19")
+
+cell_metadata$sample_cond <- factor(as.character(cell_metadata$sample_cond),
+                                    levels=sample_cond_levels)
+
+cell_counts <- sort(table(cell_metadata$Cell.Type),
+                    decreasing=T)
+
+cell_metadata$Cell.Type <- factor(as.character(cell_metadata$Cell.Type),
+                                  levels=names(cell_counts))
+
+ggplot(cell_metadata,
+       aes(x=Cell.Type,
+           fill=sample_cond)) +
+  geom_bar(position="dodge") +
+  theme_bw() +
+  scale_fill_brewer(palette = "Paired") +
+  theme(axis.text.x = element_text(angle=35, hjust=1)) +
+  labs(x=NULL, y="Cell Count", fill="Sample_Condition")
+ggsave(paste0(out_dir, "cell_counts_per_sample.png"), width=10, height=6)
+
 
 # check if any cell markers are missing / typos
 assay_genes <- rownames(m3d_seurat)

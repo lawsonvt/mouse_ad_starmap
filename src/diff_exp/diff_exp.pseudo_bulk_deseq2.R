@@ -10,6 +10,7 @@ library(DESeq2)
 library(ComplexHeatmap)
 library(circlize)
 library(reshape2)
+library(ggrepel)
 
 out_dir <- "results/diff_exp.pseudo_bulk_deseq2/"
 dir.create(out_dir, recursive = T, showWarnings = F)
@@ -158,5 +159,35 @@ Heatmap(fc_matrix,
           grid.text(fdr_matrix_print[i,j], x, y)
         }, name="log2FC")
 dev.off()
+
+# volcano plots!
+
+# volcano plots
+deg_results_df$log_p <- -log(deg_results_df$pvalue)
+
+sig_deg_results_df <- deg_results_df[deg_results_df$padj < 0.1,]
+
+logp_threshs <- data.frame(cell_type=unique(sig_deg_results_df$cell_type),
+                           thresh=sapply(unique(sig_deg_results_df$cell_type), function(cell) {
+                             -log(max(sig_deg_results_df[sig_deg_results_df$cell_type == cell,]$pvalue))
+                           }))
+
+ggplot(deg_results_df,
+       aes(x=log2FoldChange,
+           y=log_p)) +
+  geom_point(alpha=0.4, color="black") +
+  facet_wrap(~ cell_type, scales="free", ncol=6) +
+  geom_hline(data=logp_threshs,
+             aes(yintercept = thresh),
+             color="red", linetype=2) +
+  geom_point(data=sig_deg_results_df,
+             color="red") +
+  geom_text_repel(data=sig_deg_results_df,
+                  aes(label=gene_name),
+                  color="red", size=2.5,
+                  max.overlaps = 50) +
+  theme_bw() +
+  labs(x="Log2 Fold Change", y="-log(P-Value)", title="APP/PS19 - WT")
+ggsave(paste0(out_dir, "degs.volcano_plots.png"), width=16, height=10)
 
 
