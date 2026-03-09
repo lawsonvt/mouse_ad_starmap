@@ -11,6 +11,7 @@ library(ComplexHeatmap)
 library(circlize)
 library(reshape2)
 library(ggrepel)
+library(snakecase)
 
 out_dir <- "results/diff_exp.pseudo_bulk_deseq2/"
 dir.create(out_dir, recursive = T, showWarnings = F)
@@ -163,13 +164,13 @@ dev.off()
 # volcano plots!
 
 # volcano plots
-deg_results_df$log_p <- -log(deg_results_df$pvalue)
+deg_results_df$log_p <- -log10(deg_results_df$pvalue)
 
 sig_deg_results_df <- deg_results_df[deg_results_df$padj < 0.1,]
 
 logp_threshs <- data.frame(cell_type=unique(sig_deg_results_df$cell_type),
                            thresh=sapply(unique(sig_deg_results_df$cell_type), function(cell) {
-                             -log(max(sig_deg_results_df[sig_deg_results_df$cell_type == cell,]$pvalue))
+                             -log10(max(sig_deg_results_df[sig_deg_results_df$cell_type == cell,]$pvalue))
                            }))
 
 ggplot(deg_results_df,
@@ -187,7 +188,62 @@ ggplot(deg_results_df,
                   color="red", size=2.5,
                   max.overlaps = 50) +
   theme_bw() +
-  labs(x="Log2 Fold Change", y="-log(P-Value)", title="APP/PS19 - WT")
+  labs(x="Log2 Fold Change", y="-log10(P-Value)", title="APP/PS19 - WT")
 ggsave(paste0(out_dir, "degs.volcano_plots.png"), width=16, height=10)
 
+# per comparison volcano plots?
+
+volcano_dir <- paste0(out_dir, "volcano_plots/")
+
+dir.create(volcano_dir, showWarnings = F)
+
+
+top_genes <- 25
+
+volcano_plot_list <-  lapply(names(deg_results), function(cell) {
+  
+  
+  subset <- deg_results[[cell]]
+  
+  subset$log_p <- -log10(subset$pvalue)
+  
+  subset_sig <- subset[subset$padj < 0.1 &
+                         abs(subset$log2FoldChange) > 0.5,]
+  
+  subset_top <- subset_sig[1:top_genes,]
+  
+  if (any(is.na(subset_top$gene))) {
+    subset_top <- subset_top[!is.na(subset_top$gene_name),]
+  }
+  
+  logp_thresh <- min(subset_sig$log_p)
+  
+  p1 <- ggplot(subset,
+               aes(x=log2FoldChange,
+                   y=log_p)) +
+    geom_point(alpha=0.4, color="black") +
+    geom_hline(yintercept = logp_thresh,
+               color="red", linetype=2) +
+    geom_vline(xintercept = 0.5,
+               color="red", linetype=2) +
+    geom_vline(xintercept = -0.5,
+               color="red", linetype=2) +
+    geom_point(data=subset_sig,
+               color="red") +
+    geom_text_repel(data=subset_top,
+                    aes(label=gene_name),
+                    color="red", size=2.5,
+                    max.overlaps = 50) +
+    theme_bw() +
+    labs(x="Log2 Fold Change", y="-log10(P-Value)", title=cell,
+         subtitle="APP/PS19 - WT")
+  p1
+  ggsave(paste0(volcano_dir, to_snake_case(cell), ".volcano_plot.png"), width=5, height=5)
+  
+  return(p1)
+})
+
+
+plot_grid(plotlist = volcano_plot_list, nrow = 4)
+ggsave(paste0(out_dir, "cell_categories.volcanoes.png"), width=17, height=12, bg="white")
 
