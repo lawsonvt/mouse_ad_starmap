@@ -372,6 +372,9 @@ ggplot(sig_results_df,
   labs(y="Contrast", x="DEGs at FDR < 0.05")
 ggsave(paste0(out_dir, "deg_counts.png"), width=6, height=4)
 
+
+
+
 # pull out top contrast results, plot expression
 # 
 # for (contrast in names(contrasts)) {
