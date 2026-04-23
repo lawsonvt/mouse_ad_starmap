@@ -24,7 +24,7 @@ gomf_gene_sets <- msigdbr(species = "Mus musculus", collection = "C5", subcollec
 # function to convert data frames to lists
 list_convert <- function(gene_sets) {
   gene_sets %>%
-    split(x = .$ensembl_gene, f = .$gs_name)
+    split(x = .$gene_symbol, f = .$gs_name)
 }
 
 # put into one big list
@@ -51,13 +51,16 @@ dir.create(results_dir, showWarnings = F)
 
 gsea_results <- lapply(results_list, function(degs) {
   
+  # remove duplicates
+  degs <- degs[!duplicated(degs$gene_name),]
+  
   # Create ranked gene list (by log fold change or stat)
   # Important: remove NAs and sort
   ranked_genes <- degs %>%
     filter(!is.na(stat) &
              !is.infinite(stat)) %>%
     arrange(desc(stat)) %>%
-    pull(stat, name = gene_id)
+    pull(stat, name = gene_name)
   
   total_gsea_results <- lapply(names(total_gene_sets), function(gs_name) {
     
